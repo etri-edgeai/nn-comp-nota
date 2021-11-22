@@ -1,4 +1,4 @@
-# Getting Strated
+# Getting Started
 
 
 ## Overview

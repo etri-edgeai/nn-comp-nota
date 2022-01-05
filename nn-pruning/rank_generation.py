@@ -34,7 +34,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='resnet_56',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -74,7 +74,7 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default=None,
+    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
     help='compress rate of each conv')
 
 
@@ -277,7 +277,7 @@ if args.arch=='vgg_16_bn':
 
 elif args.arch=='resnet_56':
 
-    cov_layer = eval('net.relu')
+    cov_layer = eval('net.conv1')
     handler = cov_layer.register_forward_hook(get_feature_hook)
     test()
     handler.remove()

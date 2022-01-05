@@ -256,10 +256,13 @@ if args.arch=='vgg_16_bn':
 
     if len(args.gpu) > 1:
         relucfg = net.module.relucfg
+        covcfg = net.module.covcfg
     else:
         relucfg = net.relucfg
+        covcfg = net.covcfg
 
-    for i, cov_id in enumerate(relucfg):
+    for i, cov_id in enumerate(covcfg):
+    # for i, cov_id in enumerate(relucfg):
         cov_layer = net.features[cov_id]
         handler = cov_layer.register_forward_hook(get_feature_hook)
         test()

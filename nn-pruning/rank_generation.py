@@ -34,7 +34,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='resnet_56',
+    default='googlenet',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -74,7 +74,7 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
+    default='[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0]',
     help='compress rate of each conv')
 
 
@@ -84,7 +84,10 @@ args.resume = args.resume + args.arch + '.pt'
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 cudnn.benchmark = True
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if len(args.gpu)==1:
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+else:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Data
 print('==> Preparing data..')
@@ -270,7 +273,7 @@ if args.arch=='vgg_16_bn':
 
         if not os.path.isdir('rank_conv/'+args.arch+'_limit%d'%(args.limit)):
             os.mkdir('rank_conv/'+args.arch+'_limit%d'%(args.limit))
-        np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit)+'/rank_conv_skyeom' + str(i + 1) + '.npy', feature_result.numpy())
+        np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit)+'/rank_conv_w' + str(i + 1) + '.npy', feature_result.numpy())
 
         feature_result = torch.tensor(0.)
         total = torch.tensor(0.)
@@ -284,7 +287,7 @@ elif args.arch=='resnet_56':
 
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit)+ '/rank_conv_skyeom%d' % (1) + '.npy', feature_result.numpy())
+    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit)+ '/rank_conv_w%d' % (1) + '.npy', feature_result.numpy())
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
 
@@ -293,20 +296,20 @@ elif args.arch=='resnet_56':
     for i in range(3):
         block = eval('net.layer%d' % (i + 1))
         for j in range(9):
-            cov_layer = block[j].relu1
+            cov_layer = block[j].conv1
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit)+ '/rank_conv_skyeom%d'%(cnt + 1)+'.npy', feature_result.numpy())
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit)+ '/rank_conv_w%d'%(cnt + 1)+'.npy', feature_result.numpy())
             cnt+=1
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
 
-            cov_layer = block[j].relu2
+            cov_layer = block[j].conv2
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit)+ '/rank_conv_skyeom%d'%(cnt + 1)+'.npy', feature_result.numpy())
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit)+ '/rank_conv_w%d'%(cnt + 1)+'.npy', feature_result.numpy())
             cnt += 1
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
@@ -323,7 +326,7 @@ elif args.arch=='densenet_40':
     for i in range(3):
         dense = eval('net.dense%d' % (i + 1))
         for j in range(12):
-            cov_layer = dense[j].relu
+            cov_layer = dense[j].conv1
             if j==0:
                 handler = cov_layer.register_forward_hook(get_feature_hook)
             else:
@@ -331,27 +334,27 @@ elif args.arch=='densenet_40':
             test()
             handler.remove()
 
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_skyeom%d'%(13*i+j+1)+'.npy', feature_result.numpy())
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d'%(13*i+j+1)+'.npy', feature_result.numpy())
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
 
         if i<2:
             trans=eval('net.trans%d' % (i + 1))
-            cov_layer = trans.relu
+            cov_layer = trans.conv1
     
             handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
             test()
             handler.remove()
 
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_skyeom%d' % (13 * (i+1)) + '.npy', feature_result.numpy())
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d' % (13 * (i+1)) + '.npy', feature_result.numpy())
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)#'''
 
-    cov_layer = net.relu
+    cov_layer = net.relu #이것도 pruning 해야되나?
     handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
     test()
     handler.remove()
-    np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_skyeom%d' % (39) + '.npy', feature_result.numpy())
+    np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d' % (39) + '.npy', feature_result.numpy())
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
 
@@ -389,16 +392,16 @@ elif args.arch=='googlenet':
         if idx>0:
             for idx1,tp in enumerate(tp_list):
                 if idx1==3:
-                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d_'%(idx+1)+tp+'.npy',
+                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_'%(idx+1)+tp+'.npy',
                             feature_result[sum(net.filters[idx-1][:-1]) : sum(net.filters[idx-1][:])].numpy())
                 #elif idx1==0:
                 #    np.save('rank_conv1/' + args.arch + '/rank_conv%d_'%(idx+1)+tp+'.npy',
                 #            feature_result[0 : sum(net.filters[idx-1][:1])].numpy())
                 else:
-                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d_' % (idx + 1) + tp + '.npy',
+                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp + '.npy',
                             feature_result[sum(net.filters[idx-1][:idx1]) : sum(net.filters[idx-1][:idx1+1])].numpy())
         else:
-            np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d' % (idx + 1) + '.npy',feature_result.numpy())
+            np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',feature_result.numpy())
         feature_result = torch.tensor(0.)
         total = torch.tensor(0.)
 
@@ -411,7 +414,7 @@ elif args.arch=='resnet_110':
 
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d' % (1) + '.npy', feature_result.numpy())
+    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (1) + '.npy', feature_result.numpy())
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
 
@@ -424,7 +427,7 @@ elif args.arch=='resnet_110':
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + '/rank_conv_skyeom%d' % (
+            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (
             cnt + 1) + '.npy', feature_result.numpy())
             cnt += 1
             feature_result = torch.tensor(0.)
@@ -434,7 +437,7 @@ elif args.arch=='resnet_110':
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + '/rank_conv_skyeom%d' % (
+            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (
                 cnt + 1) + '.npy', feature_result.numpy())
             cnt += 1
             feature_result = torch.tensor(0.)
@@ -449,7 +452,7 @@ elif args.arch=='resnet_50':
 
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d' % (1) + '.npy', feature_result.numpy())
+    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (1) + '.npy', feature_result.numpy())
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
 
@@ -462,7 +465,7 @@ elif args.arch=='resnet_50':
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_skyeom%d'%(cnt+1)+'.npy', feature_result.numpy())
+            np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d'%(cnt+1)+'.npy', feature_result.numpy())
             cnt+=1
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
@@ -471,7 +474,7 @@ elif args.arch=='resnet_50':
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
-            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_skyeom%d' % (cnt + 1) + '.npy',
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (cnt + 1) + '.npy',
                     feature_result.numpy())
             cnt += 1
             feature_result = torch.tensor(0.)
@@ -482,10 +485,10 @@ elif args.arch=='resnet_50':
             test()
             handler.remove()
             if j==0:
-                np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_skyeom%d' % (cnt + 1) + '.npy',
+                np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (cnt + 1) + '.npy',
                         feature_result.numpy())#shortcut conv
                 cnt += 1
-            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_skyeom%d' % (cnt + 1) + '.npy',
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (cnt + 1) + '.npy',
                     feature_result.numpy())#conv3
             cnt += 1
             feature_result = torch.tensor(0.)

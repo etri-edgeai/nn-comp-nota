@@ -367,13 +367,13 @@ elif args.arch=='googlenet':
     cov_list=['pre_layers',
               'inception_a3',
               'inception_b3',
-              'maxpool1',
+              # 'maxpool1',
               'inception_a4',
               'inception_b4',
               'inception_c4',
               'inception_d4',
               'inception_e4',
-              'maxpool2',
+              # 'maxpool2',
               'inception_a5',
               'inception_b5',
               ]
@@ -399,7 +399,7 @@ elif args.arch=='googlenet':
                     test()
                     handler.remove()
 
-                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + str(i-1) + str(tp_num) + '.npy',
+                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[i-1] + str(tp_num) + '.npy',
                             feature_result.numpy())
 
                     feature_result = torch.tensor(0.)
@@ -411,7 +411,7 @@ elif args.arch=='googlenet':
             test()
             handler.remove()
 
-            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + '0.npy',
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[3] + '.npy',
                     feature_result.numpy())
 
         else:

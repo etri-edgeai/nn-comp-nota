@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='Rank extraction')
 parser.add_argument(
     '--data_dir',
     type=str,
-    default='./data',
+    default='/ssd7/skyeom/data',
     help='dataset path')
 parser.add_argument(
     '--dataset',

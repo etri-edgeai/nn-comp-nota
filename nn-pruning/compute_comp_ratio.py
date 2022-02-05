@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument(
     '--data_dir',
     type=str,
-    default='./data',
+    default='/ssd7/skyeom/data',
     help='dataset path')
 parser.add_argument(
     '--dataset',

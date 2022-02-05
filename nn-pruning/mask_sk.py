@@ -182,7 +182,10 @@ class mask_googlenet:
         self.job_dir=job_dir
         self.device = device
 
-    def layer_mask(self, cov_id, resume=None, param_per_cov=28,  arch="googlenet"):
+    def layer_mask(self, cov_id, resume=None, param_per_cov=28,  arch="googlenet"): #cov_id 1부터 시작
+        for name, param in self.model.named_parameters(): ##여기까지 진행 함
+            print(f'{name} and {param.shape}')
+
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
@@ -195,7 +198,7 @@ class mask_googlenet:
         else:
             resume=self.job_dir+'/mask'
 
-        self.param_per_cov=param_per_cov
+        self.param_per_cov=param_per_cov #28
 
         for index, item in enumerate(params):
 

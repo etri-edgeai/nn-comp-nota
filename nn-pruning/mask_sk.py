@@ -182,11 +182,31 @@ class mask_googlenet:
         self.job_dir=job_dir
         self.device = device
 
-    def layer_mask(self, cov_id, resume=None, param_per_cov=28,  arch="googlenet"): #cov_id 1부터 시작
-        for name, param in self.model.named_parameters(): ##여기까지 진행 함
-            print(f'{name} and {param.shape}')
+        self.cov_list = ['pre_layers',
+                    'inception_a3',
+                    'inception_b3',
+                    # 'maxpool1',
+                    'inception_a4',
+                    'inception_b4',
+                    'inception_c4',
+                    'inception_d4',
+                    'inception_e4',
+                    # 'maxpool2',
+                    'inception_a5',
+                    'inception_b5',
+                    ]
 
-        params = self.model.parameters()
+        # branch type
+        self.tp_list = ['branch1x1_1', 'branch3x3_1', 'branch3x3_2', 'branch5x5_1', 'branch5x5_2', 'branch5x5_3', 'pool_planes']
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=28,  arch="googlenet"): #cov_id 1부터 시작
+        # for name, param in self.model.named_parameters(): ##여기까지 진행 함
+        #     print(f'{name} and {param.shape}')
+
+        #여기 맞는지 체크 해야됨
+        module_block = eval('self.model.module.' + self.cov_list[cov_id-1])
+        params = module_block.parameters()
+
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
         prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
@@ -198,52 +218,40 @@ class mask_googlenet:
         else:
             resume=self.job_dir+'/mask'
 
-        self.param_per_cov=param_per_cov #28
-
-        for index, item in enumerate(params):
-
-            if index == (cov_id-1) * param_per_cov + 4:
-                break
-            if (cov_id==1 and index==0)\
-                    or index == (cov_id - 1) * param_per_cov - 24 \
-                    or index == (cov_id - 1) * param_per_cov - 16 \
-                    or index == (cov_id - 1) * param_per_cov - 8 \
-                    or index == (cov_id - 1) * param_per_cov - 4 \
-                    or index == (cov_id - 1) * param_per_cov:
-
-                if index == (cov_id - 1) * param_per_cov - 24:
-                    rank = np.load(prefix + str(cov_id)+'_'+'n1x1' + subfix)
-                elif index == (cov_id - 1) * param_per_cov - 16:
-                    rank = np.load(prefix + str(cov_id)+'_'+'n3x3' + subfix)
-                elif index == (cov_id - 1) * param_per_cov - 8 \
-                        or index == (cov_id - 1) * param_per_cov - 4:
-                    rank = np.load(prefix + str(cov_id)+'_'+'n5x5' + subfix)
-                elif cov_id==1 and index==0:
+        for index, item in enumerate(params): #index 0 to 257 , item: weight & bias
+            if cov_id == 1: #pre-layer
+                if index == 0: #conv
                     rank = np.load(prefix + str(cov_id) + subfix)
-                else:
-                    rank = np.load(prefix + str(cov_id) + '_' + 'pool_planes' + subfix)
 
-                f, c, w, h = item.size()
-                pruned_num = int(self.compress_rate[cov_id - 1] * f)
-                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+                    f, c, w, h = item.size()
+                    pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                    ind = np.argsort(rank)[pruned_num:]  # preserved filter id
 
-                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
-                for i in range(len(ind)):
-                    zeros[ind[i], 0, 0, 0] = 1.
-                self.mask[index] = zeros  # covolutional weight
-                item.data = item.data * self.mask[index]
+                    zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                    for i in range(len(ind)):
+                        zeros[ind[i], 0, 0, 0] = 1.
+                    self.mask[index] = zeros  # covolutional weight
+                    item.data = item.data * self.mask[index]
+                else: #others
+                    self.mask[index] = torch.squeeze(zeros)
+                    item.data = item.data * self.mask[index]
 
-            elif cov_id==1 and index > 0 and index <= 3:
-                self.mask[index] = torch.squeeze(zeros)
-                item.data = item.data * self.mask[index]
+            else: #inception_block
+                if index in [0, 4, 8, 12, 16, 20, 24]: #conv
+                    rank = np.load(prefix + str(cov_id) + '_' +  self.tp_list[[0, 4, 8, 12, 16, 20, 24].index(index)] + subfix)
 
-            elif (index>=(cov_id - 1) * param_per_cov - 20 and index< (cov_id - 1) * param_per_cov - 16) \
-                    or (index>=(cov_id - 1) * param_per_cov - 12 and index< (cov_id - 1) * param_per_cov - 8):
-                continue
+                    f, c, w, h = item.size()
+                    pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                    ind = np.argsort(rank)[pruned_num:]  # preserved filter id
 
-            elif index > (cov_id-1)*param_per_cov-24 and index < (cov_id-1)*param_per_cov+4:
-                self.mask[index] = torch.squeeze(zeros)
-                item.data = item.data * self.mask[index]
+                    zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                    for i in range(len(ind)):
+                        zeros[ind[i], 0, 0, 0] = 1.
+                    self.mask[index] = zeros  # covolutional weight
+                    item.data = item.data * self.mask[index]
+                else: #others
+                    self.mask[index] = torch.squeeze(zeros)
+                    item.data = item.data * self.mask[index]
 
         with open(resume, "wb") as f:
             pickle.dump(self.mask, f)

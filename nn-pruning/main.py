@@ -155,7 +155,7 @@ if args.compress_rate:
 
     compress_rate=cprate
 
-# compress_rate = compute_ratio(args, print_logger=print_logger)
+compress_rate = compute_ratio(args, print_logger=print_logger)
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model
 device_ids=list(map(int, args.gpu.split(',')))

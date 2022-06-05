@@ -1,13 +1,11 @@
-
-from heapq import nsmallest
-from operator import itemgetter
-
 import torch
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-
 import torchvision
 import torchvision.transforms as transforms
+
+from heapq import nsmallest
+from operator import itemgetter
 
 import os
 import argparse
@@ -143,14 +141,17 @@ def compute_ratio(args, print_logger=None):
     pruned_filters = 0
     tot_filter_hrank = 0
     tot_filter = 0
-    prefix = "rank_conv/original_hrank_save/" + args.arch + "/"
+    prefix = "rank_conv/original_googlenet/"
 
+    # test = np.load("./rank_conv/original_googlenet/rank_conv1.npy")
     arr = sorted(os.listdir(prefix))
 
-    for cov_id in range(args.start_cov, len(convcfg)): #기존 hrank 에서 다루던 googlenet 의 layer 수 (=10)
+    #기존 hrank 에서 다루던 googlenet 의 layer 수 (=10)
+    for cov_id in range(args.start_cov, len(convcfg)):
+        print(prefix+arr[cov_id + 1])
         # Load pruned_checkpoint
         if cov_id == 0:
-            hrank = np.load(prefix + arr[cov_id + 1])
+            hrank = np.load(prefix + arr[cov_id + 1], allow_pickle = True)
             pruned_filters += int(compress_rate[cov_id] * hrank.__len__())
             tot_filter_hrank += hrank.__len__()
         else:
@@ -168,7 +169,7 @@ def compute_ratio(args, print_logger=None):
         # Load pruned_checkpoint
         print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-        prefix = "rank_conv/" + args.arch + "/"
+        prefix = "rank_conv/" + args.arch + "_limit1/"
         subfix = ".npy"
 
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
@@ -211,4 +212,4 @@ if __name__ == "__main__":
     print_logger = utils.get_logger(os.path.join(args.job_dir, "cp_ratio_logger.log"))
 
     compress_rate = compute_ratio(args, print_logger=print_logger)
-    print(compress_rate)
+    print(compress_rate)      

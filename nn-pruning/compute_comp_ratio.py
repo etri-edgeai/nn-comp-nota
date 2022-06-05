@@ -146,7 +146,7 @@ def compute_ratio(args, print_logger=None):
         # Load pruned_checkpoint
         print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-        prefix = "rank_conv/" + args.arch + "_limit1/rank_conv_w"
+        prefix = "rank_conv/" + args.arch + "/rank_conv_w"
         subfix = ".npy"
 
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)

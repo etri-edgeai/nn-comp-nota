@@ -99,24 +99,25 @@ def compute_ratio(args, print_logger=None):
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if args.compress_rate:
-        import re
-        cprate_str=args.compress_rate
-        cprate_str_list=cprate_str.split('+')
-        pat_cprate = re.compile(r'\d+\.\d*')
-        pat_num = re.compile(r'\*\d+')
-        cprate=[]
-        for x in cprate_str_list:
-            num=1
-            find_num=re.findall(pat_num,x)
-            if find_num:
-                assert len(find_num) == 1
-                num=int(find_num[0].replace('*',''))
-            find_cprate = re.findall(pat_cprate, x)
-            assert len(find_cprate)==1
-            cprate+=[float(find_cprate[0])]*num
-
-        compress_rate=cprate
+    # if args.compress_rate:
+    #     import re
+    #     cprate_str=args.compress_rate
+    #     cprate_str_list=cprate_str.split('+')
+    #     pat_cprate = re.compile(r'\d+\.\d*')
+    #     pat_num = re.compile(r'\*\d+')
+    #     cprate=[]
+    #     for x in cprate_str_list:
+    #         num=1
+    #         find_num=re.findall(pat_num,x)
+    #         if find_num:
+    #             assert len(find_num) == 1
+    #             num=int(find_num[0].replace('*',''))
+    #         find_cprate = re.findall(pat_cprate, x)
+    #         assert len(find_cprate)==1
+    #         cprate+=[float(find_cprate[0])]*num
+    #
+    #     compress_rate=cprate
+    compress_rate = args.compress_rate
 
     device_ids=list(map(int, args.gpu.split(',')))
     net = eval(args.arch)(compress_rate=compress_rate)

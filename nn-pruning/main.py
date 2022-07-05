@@ -82,12 +82,12 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0]',
+    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
     type=str,
-    default='densenet_40',
+    default='vgg_16_bn',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 
@@ -166,6 +166,7 @@ if args.compress_rate:
         cprate += [float(find_cprate[0])]*num
 
     compress_rate = cprate
+    args.compress_rate = cprate
 
 if args.arch == 'googlenet':
     compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)

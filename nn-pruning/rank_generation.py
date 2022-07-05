@@ -33,7 +33,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='resnet_56',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -64,7 +64,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='5',
+    default='7',
     help='Select gpu to use')
 parser.add_argument(
     '--adjust_ckpt',

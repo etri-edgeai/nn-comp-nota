@@ -33,7 +33,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='resnet_56',
+    default='resnet_110',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(

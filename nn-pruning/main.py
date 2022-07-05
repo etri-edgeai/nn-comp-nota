@@ -82,12 +82,12 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
+    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='resnet_56',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -103,7 +103,6 @@ parser.add_argument(
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
-
 
 # 'vgg_16_bn'  : [0.7]*7+[0.1]*6,
 

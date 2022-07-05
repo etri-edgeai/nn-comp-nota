@@ -33,7 +33,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='resnet_56',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -44,7 +44,7 @@ parser.add_argument(
 parser.add_argument(
     '--limit',
     type=int,
-    default=10,
+    default=9,
     help='The num of batch to get rank.')
 parser.add_argument(
     '--train_batch_size',
@@ -195,8 +195,11 @@ def get_feature_hook(self, input, output):
     # c = c.view(a, -1).float()
     # c = c.sum(0)
 
-    ########### Seul-Ki's approach
+    ########### Seul-Ki's approach (version1)
     c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b)])
+
+    ########### Seul-Ki's approach (version2)
+    c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b)])
 
     feature_result = feature_result * total + c
     total = total + a

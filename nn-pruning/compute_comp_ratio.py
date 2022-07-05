@@ -157,7 +157,7 @@ def compute_ratio_iterative(args, print_logger=None):
         # Load pruned_checkpoint
         print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-        prefix = "rank_conv/" + args.arch + "_limit9/rank_conv_w"
+        prefix = "rank_conv/" + args.arch + "_limit10/rank_conv_w"
         subfix = ".npy"
 
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
@@ -226,24 +226,6 @@ def compute_ratio(args, print_logger=None):
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # if args.compress_rate:
-    #     import re
-    #     cprate_str=args.compress_rate
-    #     cprate_str_list=cprate_str.split('+')
-    #     pat_cprate = re.compile(r'\d+\.\d*')
-    #     pat_num = re.compile(r'\*\d+')
-    #     cprate=[]
-    #     for x in cprate_str_list:
-    #         num=1
-    #         find_num=re.findall(pat_num,x)
-    #         if find_num:
-    #             assert len(find_num) == 1
-    #             num=int(find_num[0].replace('*',''))
-    #         find_cprate = re.findall(pat_cprate, x)
-    #         assert len(find_cprate)==1
-    #         cprate+=[float(find_cprate[0])]*num
-    #
-    #     compress_rate=cprate
     compress_rate = args.compress_rate
 
     device_ids =list(map(int, args.gpu.split(',')))
@@ -267,14 +249,13 @@ def compute_ratio(args, print_logger=None):
     all_filters = {}
     compressed_filters = {}
     pruning_filter = 0
-    remained_filters = 0
     tot_filter = 0
     print(len(convcfg))
     for cov_id in range(args.start_cov, len(convcfg)):
         # Load pruned_checkpoint
         print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-        prefix = "rank_conv/" + args.arch + "_limit9/rank_conv_w"
+        prefix = "rank_conv/" + args.arch + "_limit10/rank_conv_w"
         subfix = ".npy"
 
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
@@ -311,8 +292,6 @@ def compute_ratio(args, print_logger=None):
     print(f'old compress rate: {compress_rate}')
     print(f'new_compress_rate: {new_compress_rate}')
     return new_compress_rate
-
-
 
 if __name__ == "__main__":
     args = parser.parse_args()

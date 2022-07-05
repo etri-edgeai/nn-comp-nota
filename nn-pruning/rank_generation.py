@@ -376,6 +376,7 @@ if args.arch   =='vgg_16_bn':
 
     # print(covcfg)
     # print(relucfg), covcfg는 cov의 레이어 번호, relucfg는 relu의 레이어 번호
+    '''
     for i, cov_id in enumerate(covcfg):
     # for i, cov_id in enumerate(relucfg):
         cov_layer = net.features[cov_id]
@@ -389,6 +390,18 @@ if args.arch   =='vgg_16_bn':
 
         feature_result = torch.tensor(0.)
         total = torch.tensor(0.)
+    '''
+    for i, relu_id in enumerate(relucfg):
+        relu_layer=net.features[relu_id]
+        handler=relu_layer.register_forward_pre_hook(get_feature_hook)
+        test()
+        handler.remove()
+        if not os.path.isdir('rank_conv/'+args.arch+'_limit%d'%(args.limit)):
+            os.mkdir('rank_conv/'+args.arch+'_limit%d'%(args.limit))
+        np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit) + args.save_name + str(i+1) + '.npy', feature_result.numpy())
+
+        feature_result = torch.tensor(0.)
+        total=torch.tensor(0.)
 
 elif args.arch =='resnet_50':
 

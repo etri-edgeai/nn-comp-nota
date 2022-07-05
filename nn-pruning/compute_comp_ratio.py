@@ -53,7 +53,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='1, 3',
+    default='5',
     help='Select gpu to use')
 parser.add_argument(
     '--job_dir',
@@ -83,12 +83,12 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
+    default='[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0]',
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
     type=str,
-    default='resnet_56',
+    default='densenet_40',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 
@@ -139,6 +139,7 @@ def compute_ratio(args, print_logger=None):
     rank = {}
     all_filters = {}
     compressed_filters = {}
+    pruning_filter = 0
     remained_filters = 0
     tot_filter = 0
     print(len(convcfg))
@@ -152,11 +153,12 @@ def compute_ratio(args, print_logger=None):
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
         rank[cov_id] /= np.linalg.norm(rank[cov_id], ord=1)
 
-        pruned_num = int(compress_rate[cov_id] * rank[cov_id].__len__())
-        remained_filters += len(np.argsort(rank[cov_id])[pruned_num:])
-        tot_filter += len(rank[cov_id])
+        # pruned_num = int(compress_rate[cov_id] * rank[cov_id].__len__())
+        pruning_filter += int(compress_rate[cov_id] * rank[cov_id].__len__())
+        # remained_filters += len(np.argsort(rank[cov_id])[pruned_num:])
+        tot_filter += rank[cov_id].__len__()
         all_filters[cov_id] = rank[cov_id].__len__()
-        compressed_filters[cov_id] = rank[cov_id][pruned_num:].__len__()
+        compressed_filters[cov_id] = rank[cov_id].__len__()
 
     def lowest_ranking_filters(filter_rank, num):
         data = []
@@ -168,7 +170,7 @@ def compute_ratio(args, print_logger=None):
         # print(data)
         return nsmallest(num, data, itemgetter(2))
 
-    filter_to_prune = lowest_ranking_filters(rank, tot_filter - remained_filters)
+    filter_to_prune = lowest_ranking_filters(rank, pruning_filter)
 
     for (l, _, _) in filter_to_prune:
         compressed_filters[l] -= 1

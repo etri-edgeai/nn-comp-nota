@@ -93,18 +93,21 @@ parser.add_argument(
 parser.add_argument(
     '--pruning_step',
     type=float,
-    default='0.01',
+    default='0.05',
     help='compress rate of each conv')
 parser.add_argument(
     '--pr',
     type=float,
-    default=0.76,
+    default=None,
     help='pruning ratio')
+parser.add_argument('--seed', type=int, default=1, metavar='S',
+                    help='random seed (default: 1)')
 parser.add_argument(
     '--limit',
     type=int,
     default=10,
     help='The num of batch to get rank.')
+
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
@@ -125,6 +128,10 @@ if len(device_ids)==1:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+torch.manual_seed(args.seed) ##for cpu
+if args.gpu:
+    torch.cuda.manual_seed(args.seed) ##for gpu
 
 best_acc      = 0  # best test accuracy
 start_epoch   = 0  # start from epoch 0 or last checkpoint epoch
@@ -182,10 +189,15 @@ if args.compress_rate:
     compress_rate = cprate
     args.compress_rate = cprate
 
-if args.arch == 'googlenet':
-    compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
-else:
-    compress_rate = compute_ratio(args, print_logger=print_logger)
+# if args.arch == 'googlenet':
+#     compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
+# elif args.arch == 'densenet_40':
+#     print(f'no global pruning')
+# else:
+#     compress_rate = compute_ratio(args, print_logger=print_logger)
+#
+#     if args.arch == 'vgg_16_bn':
+#         compress_rate = compress_rate + [0.]
     # compress_rate = compute_ratio_iterative(args, print_logger=print_logger)
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model

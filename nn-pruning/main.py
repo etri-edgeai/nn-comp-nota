@@ -100,6 +100,11 @@ parser.add_argument(
     type=float,
     default=0.76,
     help='pruning ratio')
+parser.add_argument(
+    '--limit',
+    type=int,
+    default=10,
+    help='The num of batch to get rank.')
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'

@@ -224,6 +224,15 @@ def get_feature_hook(self, input, output):
         feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b)])
         feature_result /= total
         batch_count = 0
+        
+#     ########### HyungCheol's addtional approach (based version 3) / 각 배치마다 SVD를 계산하고 누적
+#     feature_result = output.view(a, b, -1)
+#     feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range (b)])
+#     total          = total + feature_result
+
+#     batch_count    = batch_count + 1
+#     if batch_count == args.limit:
+#         feature_result = feature_result / total
 
 def get_feature_hook_densenet(self, input, output):
     global feature_result

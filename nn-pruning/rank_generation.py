@@ -34,7 +34,7 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='googlenet',
+    default='vgg_16_bn',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
@@ -319,39 +319,39 @@ def test():
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 model module
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-if args.arch   =='vgg_16_bn':
-    if len(args.gpu) > 1:
-        relucfg = net.module.relucfg
-    else:
-        relucfg = net.relucfg
+if args.arch in ['vgg_16_bn', 'resnet_56', 'resnet_110', 'googlenet']:
+    cnt = 0
+    for name, cov_layer in net.named_modules():  # vgg_16_bn, resnet_56, resnet_110, googlenet
+        if isinstance(cov_layer, nn.BatchNorm2d):
+            handler = cov_layer.register_forward_hook(get_feature_hook)
+            test()
+            handler.remove()
 
-    # print(covcfg)
-    # print(relucfg), covcfg는 cov의 레이어 번호, relucfg는 relu의 레이어 번호
-    for i, cov_id in enumerate(relucfg):
-        cov_layer = net.features[cov_id-1]
-        handler = cov_layer.register_forward_hook(get_feature_hook)
-        test()
-        handler.remove()
+            if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
+                os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
+                    feature_result.numpy())
 
-        if not os.path.isdir('rank_conv/'+ args.arch + '_limit%d'%(args.limit)):
-            os.mkdir('rank_conv/'+args.arch+'_limit%d'%(args.limit))
-        np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit) + args.save_name + str(i + 1) + '.npy', feature_result.numpy())
+            cnt += 1
+            feature_result = torch.tensor(0.)
+            total = torch.tensor(0.)
 
-        feature_result = torch.tensor(0.)
-        total = torch.tensor(0.)
-    '''
-    for i, relu_id in enumerate(relucfg):
-        relu_layer=net.features[relu_id]
-        handler=relu_layer.register_forward_pre_hook(get_feature_hook)
-        test()
-        handler.remove()
-        if not os.path.isdir('rank_conv/'+args.arch+'_limit%d'%(args.limit)):
-            os.mkdir('rank_conv/'+args.arch+'_limit%d'%(args.limit))
-        np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit) + args.save_name + str(i+1) + '.npy', feature_result.numpy())
+    if args.arch in ['vgg_16_bn']:  # dense layer
+        for name, dense_layer in net.named_modules():  # vgg_16_bn
+            if isinstance(dense_layer, nn.BatchNorm1d):
 
-        feature_result = torch.tensor(0.)
-        total=torch.tensor(0.)
-    '''
+                handler = dense_layer.register_forward_hook(get_feature_hook)
+                test()
+                handler.remove()
+
+                if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
+                    os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
+                np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
+                        feature_result.numpy())
+
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
 elif args.arch =='resnet_50':
 
     cov_layer = eval('net.maxpool')
@@ -403,79 +403,6 @@ elif args.arch =='resnet_50':
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
 
-elif args.arch =='resnet_56':
-    cov_layer = eval('net.bn1') #relu -> bn1
-    handler = cov_layer.register_forward_hook(get_feature_hook)
-    test()
-    handler.remove()
-
-    if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-        os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + args.save_name + '%d' % (1) + '.npy', feature_result.numpy())
-    feature_result = torch.tensor(0.)
-    total = torch.tensor(0.)
-
-    # ResNet56 per block
-    cnt=1
-    for i in range(3):
-        block = eval('net.layer%d' % (i + 1))
-        for j in range(9):
-            cov_layer = block[j].bn1 # relu1
-            handler = cov_layer.register_forward_hook(get_feature_hook)
-            test()
-            handler.remove()
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d'%(cnt + 1)+'.npy', feature_result.numpy())
-            cnt+=1
-            feature_result = torch.tensor(0.)
-            total = torch.tensor(0.)
-
-            cov_layer = block[j].bn2 # relu2
-            handler = cov_layer.register_forward_hook(get_feature_hook)
-            test()
-            handler.remove()
-            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d'%(cnt + 1)+'.npy', feature_result.numpy())
-            cnt += 1
-            feature_result = torch.tensor(0.)
-            total = torch.tensor(0.)
-            
-elif args.arch =='resnet_110':
-
-    cov_layer = eval('net.bn1') #covert .relu to .conv1
-    handler = cov_layer.register_forward_hook(get_feature_hook)
-    test()
-    handler.remove()
-
-    if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-        os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + args.save_name + '%d' % (1) + '.npy', feature_result.numpy())
-    feature_result = torch.tensor(0.)
-    total = torch.tensor(0.)
-
-    cnt = 1
-    # ResNet110 per block
-    for i in range(3):
-        block = eval('net.layer%d' % (i + 1))
-        for j in range(18):
-            cov_layer = block[j].bn1
-            handler = cov_layer.register_forward_hook(get_feature_hook)
-            test()
-            handler.remove()
-            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + args.save_name + '%d' % (
-            cnt + 1) + '.npy', feature_result.numpy())
-            cnt += 1
-            feature_result = torch.tensor(0.)
-            total = torch.tensor(0.)
-
-            cov_layer = block[j].bn2
-            handler = cov_layer.register_forward_hook(get_feature_hook)
-            test()
-            handler.remove()
-            np.save('rank_conv/' + args.arch  + '_limit%d' % (args.limit) + args.save_name + '%d' % (
-                cnt + 1) + '.npy', feature_result.numpy())
-            cnt += 1
-            feature_result = torch.tensor(0.)
-            total = torch.tensor(0.)
-
 elif args.arch=='densenet_40':
 
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
@@ -517,121 +444,5 @@ elif args.arch=='densenet_40':
     test()
     handler.remove()
     np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d' % (39) + '.npy', feature_result.numpy())
-    feature_result = torch.tensor(0.)
-    total = torch.tensor(0.)
-
-# elif args.arch=='googlenet':
-
-#     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-#         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-#     feature_result = torch.tensor(0.)
-#     total = torch.tensor(0.)
-
-#     cov_list=['pre_layers',
-#               'inception_a3',
-#               'maxpool1',
-#               'inception_a4',
-#               'inception_b4',
-#               'inception_c4',
-#               'inception_d4',
-#               'inception_e4',
-#               'maxpool2',
-#               'inception_a5',
-#               'inception_b5',
-#               ]
-
-#     # branch type
-#     tp_list = ['branch1x1', 'branch3x3', 'branch3x3', 'branch5x5', 'branch5x5', 'branch5x5','pool_planes']
-#     for index1, module1 in net.named_modules():
-#         if isinstance(module1, nn.Conv2d):
-#             # print(f"{module1}")
-#             handler = module1.register_forward_hook(get_feature_hook)
-#             test()
-#             handler.remove()
-
-#             np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[
-#                 count] + '_' + str(j + 1) + '.npy',
-#                     feature_result.numpy())
-            
-#             feature_result = torch.tensor(0.)
-#             total = torch.tensor(0.)
-
-#     for idx, cov in enumerate(cov_list):
-#         cov_idx = [0, 3, 6]
-
-#         if idx<args.start_idx:
-#             continue
-#         cov_layer=eval('net.'+cov)
-
-#         if idx > 0:
-#             i = 0
-#             count = 0
-#             while i < 3:
-#                 i += 1
-#                 for tp_num, j in enumerate(range(i)):
-#                     # print(f'i and tp_num: {i-1}{tp_num}')
-
-#                     cov = eval('cov_layer.'+tp_list[count] + '[' + str(cov_idx[j]) + ']')
-#                     handler = cov.register_forward_hook(get_feature_hook)
-#                     test()
-#                     handler.remove()
-
-#                     np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[count] + '_' + str(j+1) + '.npy',
-#                             feature_result.numpy())
-
-#                     feature_result = torch.tensor(0.)
-#                     total = torch.tensor(0.)
-#                     count += 1
-
-#             # pool_planes
-#             cov = cov_layer.branch_pool[1]
-#             handler = cov.register_forward_hook(get_feature_hook)
-#             test()
-#             handler.remove()
-
-#             np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[-1] + '.npy',
-#                     feature_result.numpy())
-
-#         else:
-#             handler = cov_layer.register_forward_hook(get_feature_hook)
-#             test()
-#             handler.remove()
-#             np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',
-#                     feature_result.numpy())
-
-#         feature_result = torch.tensor(0.)
-#         total = torch.tensor(0.)
-
-
-elif args.arch  == 'googlenet':
-    cov_list=['pre_layers',
-              'inception_a3',
-              # 'maxpool1',
-              'inception_a4',
-              'inception_b4',
-              'inception_c4',
-              'inception_d4',
-              'inception_e4',
-              # 'maxpool2',
-              'inception_a5',
-              'inception_b5',
-              ]
-    if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-        os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-
-    number = 0
-    for index, module1 in net.named_modules():
-        if isinstance(module1, nn.BatchNorm2d):
-            number  = number + 1
-            handler = module1.register_forward_hook(get_feature_hook)
-            test()
-            handler.remove()
-            print(feature_result.shape)
-            np.save('rank_conv/' + args.arch + '_limit%d'%(args.limit) + "/" + str(number) + '.npy', feature_result.numpy())
-            feature_result = torch.tensor(0.)
-            total          = torch.tensor(0.)
-
-    if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-        os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)

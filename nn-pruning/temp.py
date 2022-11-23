@@ -20,4 +20,4 @@ for index, item in enumerate(params):  # index 0 to 257 , item: weight & bias
         if index in [0, 4, 8, 12, 16, 20, 24]:  # conv
             print(prefix + str(cov_id) + '_' + self.tp_list[[0, 4, 8, 12, 16, 20, 24].index(index)] + subfix)
         else:  # others
-            print(f'non_conv')
+            print(f'non_conv')  

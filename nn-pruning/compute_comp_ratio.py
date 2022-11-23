@@ -93,100 +93,102 @@ parser.add_argument(
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 
-args = parser.parse_args()
-args.resume = args.resume + args.arch + '.pt'
+def compute_ratio(args, print_logger=None):
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    if len(args.gpu)==1:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if len(args.gpu)==1:
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.compress_rate:
+        import re
+        cprate_str=args.compress_rate
+        cprate_str_list=cprate_str.split('+')
+        pat_cprate = re.compile(r'\d+\.\d*')
+        pat_num = re.compile(r'\*\d+')
+        cprate=[]
+        for x in cprate_str_list:
+            num=1
+            find_num=re.findall(pat_num,x)
+            if find_num:
+                assert len(find_num) == 1
+                num=int(find_num[0].replace('*',''))
+            find_cprate = re.findall(pat_cprate, x)
+            assert len(find_cprate)==1
+            cprate+=[float(find_cprate[0])]*num
 
-ckpt = utils.checkpoint(args)
-print_logger = utils.get_logger(os.path.join(args.job_dir, "cp_ratio_logger.log"))
-utils.print_params(vars(args), print_logger.info)
+        compress_rate=cprate
 
-if args.compress_rate:
-    import re
-    cprate_str=args.compress_rate
-    cprate_str_list=cprate_str.split('+')
-    pat_cprate = re.compile(r'\d+\.\d*')
-    pat_num = re.compile(r'\*\d+')
-    cprate=[]
-    for x in cprate_str_list:
-        num=1
-        find_num=re.findall(pat_num,x)
-        if find_num:
-            assert len(find_num) == 1
-            num=int(find_num[0].replace('*',''))
-        find_cprate = re.findall(pat_cprate, x)
-        assert len(find_cprate)==1
-        cprate+=[float(find_cprate[0])]*num
+    device_ids=list(map(int, args.gpu.split(',')))
+    net = eval(args.arch)(compress_rate=compress_rate)
+    net = net.to(device)
 
-    compress_rate=cprate
+    if len(args.gpu)>1 and torch.cuda.is_available():
+        device_id = []
+        for i in range((len(args.gpu) + 1) // 2):
+            device_id.append(i)
+        net = torch.nn.DataParallel(net, device_ids=device_id)
 
-device_ids=list(map(int, args.gpu.split(',')))
-print_logger.info('==> Building model..')
-net = eval(args.arch)(compress_rate=compress_rate)
-net = net.to(device)
+    cudnn.benchmark = True
 
-if len(args.gpu)>1 and torch.cuda.is_available():
-    device_id = []
-    for i in range((len(args.gpu) + 1) // 2):
-        device_id.append(i)
-    net = torch.nn.DataParallel(net, device_ids=device_id)
+    if len(args.gpu)>1:
+        convcfg = net.module.covcfg
+    else:
+        convcfg = net.covcfg
 
-cudnn.benchmark = True
-# print(net)
+    rank = {}
+    all_filters = {}
+    compressed_filters = {}
+    remained_filters = 0
+    tot_filter = 0
+    for cov_id in range(args.start_cov, len(convcfg)):
+        # Load pruned_checkpoint
+        print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-if len(args.gpu)>1:
-    convcfg = net.module.covcfg
-else:
-    convcfg = net.covcfg
+        prefix = "rank_conv/" + args.arch + "/rank_conv_skyeom"
+        subfix = ".npy"
 
-rank = {}
-all_filters = {}
-compressed_filters = {}
-remained_filters = 0
-tot_filter = 0
-for cov_id in range(args.start_cov, len(convcfg)):
-    # Load pruned_checkpoint
-    print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
+        rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
+        rank[cov_id] /= np.linalg.norm(rank[cov_id], ord=1)
 
-    prefix = "rank_conv/" + args.arch + "/rank_conv_skyeom"
-    subfix = ".npy"
+        pruned_num = int(compress_rate[cov_id] * rank[cov_id].__len__())
+        remained_filters += len(np.argsort(rank[cov_id])[pruned_num:])
+        tot_filter += len(rank[cov_id])
+        all_filters[cov_id] = rank[cov_id].__len__()
+        compressed_filters[cov_id] = rank[cov_id].__len__()
 
-    rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)
-    rank[cov_id] /= np.linalg.norm(rank[cov_id], ord=1)
+    def lowest_ranking_filters(filter_rank, num):
+        data = []
+        for i in range(len(filter_rank)):
+            for j in range(len(filter_rank[i])):
+                data.append((i, j, filter_rank[i][j]))
+                # print(len(filter_rank[i]))
 
-    pruned_num = int(compress_rate[cov_id] * rank[cov_id].__len__())
-    remained_filters += len(np.argsort(rank[cov_id])[pruned_num:])
-    tot_filter += len(rank[cov_id])
-    all_filters[cov_id] = rank[cov_id].__len__()
-    compressed_filters[cov_id] = rank[cov_id].__len__()
+        # print(data)
+        return nsmallest(num, data, itemgetter(2))
 
-def lowest_ranking_filters(filter_rank, num):
-    data = []
-    for i in range(len(filter_rank)):
-        for j in range(len(filter_rank[i])):
-            data.append((i, j, filter_rank[i][j]))
-            # print(len(filter_rank[i]))
+    filter_to_prune = lowest_ranking_filters(rank, tot_filter - remained_filters)
 
-    # print(data)
-    return nsmallest(num, data, itemgetter(2))
+    for (l, _, _) in filter_to_prune:
+        compressed_filters[l] -= 1
 
-filter_to_prune = lowest_ranking_filters(rank, tot_filter - remained_filters)
+    compression_ratio = np.zeros(len(rank))
+    for i in range(len(compression_ratio)):
+        compression_ratio[i] = 1.0 - (compressed_filters[i] / all_filters[i])
 
-for (l, _, _) in filter_to_prune:
-    compressed_filters[l] -= 1
+    new_compress_rate = compression_ratio.tolist()
 
-compression_ratio = np.zeros(len(rank))
-for i in range(len(compression_ratio)):
-    compression_ratio[i] = 1.0 - (compressed_filters[i] / all_filters[i])
+    print(f'old compress rate: {compress_rate}')
+    print(f'new_compress_rate: {new_compress_rate}')
+    return new_compress_rate
 
-new_compress_rate = compression_ratio.tolist()
 
-print(f'old compress rate: {compress_rate}')
-print(f'new_compress_rate: {new_compress_rate}')
+if __name__ == "__main__":
+    args = parser.parse_args()
+    args.resume = args.resume + args.arch + '.pt'
 
+    print_logger = utils.get_logger(os.path.join(args.job_dir, "cp_ratio_logger.log"))
+
+    compress_rate = compute_ratio(args, print_logger=print_logger)
+    print(compress_rate)

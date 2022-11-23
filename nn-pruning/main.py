@@ -15,7 +15,7 @@ from utils import progress_bar
 from mask_sk import *
 import utils
 from compute_comp_ratio import compute_ratio
-# from compute_comp_ratio_googlenet import compute_ratio
+from compute_comp_ratio_googlenet import compute_ratio as compute_ratio_googlenet
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument(
@@ -52,7 +52,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='0',
+    default='4,6',
     help='Select gpu to use')
 parser.add_argument(
     '--job_dir',
@@ -82,12 +82,12 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
+    default='[0.10]+[0.8]*5+[0.85]+[0.8]*3',
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
     type=str,
-    default='resnet_56',
+    default='googlenet',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 
@@ -105,8 +105,9 @@ args.resume = args.resume + args.arch + '.pt'
 # 'resnet_50'  : [0.2]+[0.8]*10+[0.8]*13+[0.55]*19+[0.45]*10,
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+device_ids = list(map(int, args.gpu.split(',')))
 
-if len(args.gpu)==1:
+if len(device_ids)==1:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -166,10 +167,13 @@ if args.compress_rate:
 
     compress_rate = cprate
 
-compress_rate = compute_ratio(args, print_logger=print_logger)
+if args.arch == 'googlenet':
+    compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
+else:
+    compress_rate = compute_ratio(args, print_logger=print_logger)
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model
-device_ids = list(map(int, args.gpu.split(',')))
+
 print_logger.info('==> Building model..')
 net = eval(args.arch)(compress_rate=compress_rate)
 net = net.to(device)
@@ -279,7 +283,7 @@ if len(args.gpu)>1:
 else:
     print_logger.info('compress rate: ' + str(net.compress_rate))
 
-print(convcfg)
+# print(convcfg)
 for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 1에서 12번의 rank_conv 방문)
     # Load pruned_checkpoint
     print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
@@ -289,10 +293,7 @@ for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_decay_step, gamma=0.1)
 
     if cov_id == 0:
-        if len(device_ids) == 1:
-            pruned_checkpoint = torch.load(args.resume, map_location='cuda:0')  # load pretrained full-model
-        else:
-            pruned_checkpoint = torch.load(args.resume) #load pretrained full-model
+        pruned_checkpoint = torch.load(args.resume, map_location=device) #load pretrained full-model
 
         from collections import OrderedDict
         new_state_dict = OrderedDict()

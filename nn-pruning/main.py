@@ -1,322 +1,352 @@
 
 import torch
-import torch.optim as optim
-import torch.backends.cudnn as cudnn
+import pickle
+import numpy as np
 
-import torchvision
-import torchvision.transforms as transforms
+class mask_vgg_16_bn:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.mask = {}
+        self.job_dir=job_dir
+        self.device = device
 
-import os
-import argparse
+    def layer_mask(self, cov_id, resume=None, param_per_cov=4,  arch="vgg_16_bn"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
 
-from data import imagenet
-from models import *
-from utils import progress_bar
-from mask_sk import *
-import utils
-from compute_comp_ratio import compute_ratio
-
-parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument(
-    '--data_dir',
-    type=str,
-    default='/ssd7/skyeom/data',
-    help='dataset path')
-parser.add_argument(
-    '--dataset',
-    type=str,
-    default='cifar10',
-    choices=('cifar10','imagenet'),
-    help='dataset')
-parser.add_argument(
-    '--lr',
-    default=0.01,
-    type=float,
-    help='initial learning rate')
-parser.add_argument(
-    '--lr_decay_step',
-    default='5,10',
-    type=str,
-    help='learning rate decay step')
-parser.add_argument(
-    '--resume',
-    type=str,
-    default='./checkpoints/',
-    help='load the model from the specified checkpoint')
-parser.add_argument(
-    '--resume_mask',
-    type=str,
-    default=None,
-    help='mask loading')
-parser.add_argument(
-    '--gpu',
-    type=str,
-    default='2, 3',
-    help='Select gpu to use')
-parser.add_argument(
-    '--job_dir',
-    type=str,
-    default='./result/temp',
-    help='The directory where the summaries will be stored.')
-parser.add_argument(
-    '--epochs',
-    type=int,
-    default=15,
-    help='The num of epochs to train.')
-parser.add_argument(
-    '--train_batch_size',
-    type=int,
-    default=128,
-    help='Batch size for training.')
-parser.add_argument(
-    '--eval_batch_size',
-    type=int,
-    default=100,
-    help='Batch size for validation.')
-parser.add_argument(
-    '--start_cov',
-    type=int,
-    default=0,
-    help='The num of conv to start prune')
-parser.add_argument(
-    '--compress_rate',
-    type=str,
-    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
-    help='compress rate of each conv')
-parser.add_argument(
-    '--arch',
-    type=str,
-    default='googlenet',
-    choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
-    help='The architecture to prune')
-
-args = parser.parse_args()
-args.resume = args.resume + args.arch + '.pt'
-
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-
-if len(args.gpu)==1:
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-lr_decay_step = list(map(int, args.lr_decay_step.split(',')))
-
-ckpt = utils.checkpoint(args)
-print_logger = utils.get_logger(os.path.join(args.job_dir, "logger.log"))
-utils.print_params(vars(args), print_logger.info)
-
-# Data
-print_logger.info('==> Preparing data..')
-
-if args.dataset=='cifar10':
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    trainset = torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.train_batch_size, shuffle=True, num_workers=2)
-
-    testset = torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.eval_batch_size, shuffle=False, num_workers=2)
-elif args.dataset=='imagenet':
-    data_tmp = imagenet.Data(args)
-    trainloader = data_tmp.loader_train
-    testloader = data_tmp.loader_test
-else:
-    assert 1==0
-
-if args.compress_rate:
-    import re
-    cprate_str=args.compress_rate
-    cprate_str_list=cprate_str.split('+')
-    pat_cprate = re.compile(r'\d+\.\d*')
-    pat_num = re.compile(r'\*\d+')
-    cprate=[]
-    for x in cprate_str_list:
-        num=1
-        find_num=re.findall(pat_num,x)
-        if find_num:
-            assert len(find_num) == 1
-            num=int(find_num[0].replace('*',''))
-        find_cprate = re.findall(pat_cprate, x)
-        assert len(find_cprate)==1
-        cprate+=[float(find_cprate[0])]*num
-
-    compress_rate=cprate
-
-compress_rate = compute_ratio(args, print_logger=print_logger)
-# compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
-# Model
-device_ids=list(map(int, args.gpu.split(',')))
-print_logger.info('==> Building model..')
-net = eval(args.arch)(compress_rate=compress_rate)
-net = net.to(device)
-
-if len(args.gpu)>1 and torch.cuda.is_available():
-    device_id = []
-    for i in range((len(args.gpu) + 1) // 2):
-        device_id.append(i)
-    net = torch.nn.DataParallel(net, device_ids=device_id)
-
-cudnn.benchmark = True
-# print(net)
-
-if len(args.gpu)>1:
-    m = eval('mask_'+args.arch)(model=net, compress_rate=net.module.compress_rate, job_dir=args.job_dir, device=device)
-else:
-    m = eval('mask_' + args.arch)(model=net, compress_rate=net.compress_rate, job_dir=args.job_dir, device=device)
-
-criterion = nn.CrossEntropyLoss()
-
-# Training
-def train(epoch, cov_id, optimizer, scheduler, pruning=True):
-    print_logger.info('\nEpoch: %d' % epoch)
-    net.train()
-
-    train_loss = 0
-    correct = 0
-    total = 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        with torch.cuda.device(device):
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            optimizer.zero_grad()
-            outputs = net(inputs)
-            loss = criterion(outputs, targets)
-            loss.backward()
-
-            optimizer.step()
-
-            if pruning:
-                m.grad_mask(cov_id)
-
-            train_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
-
-            progress_bar(batch_idx,len(trainloader),
-                         'Cov: %d | Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (cov_id, train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
-
-def test(epoch, cov_id, optimizer, scheduler):
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-
-    global best_acc
-    net.eval()
-    num_iterations = len(testloader)
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = net(inputs)
-            loss = criterion(outputs, targets)
-
-            prec1, prec5 = utils.accuracy(outputs, targets, topk=(1, 5))
-            top1.update(prec1[0], inputs.size(0))
-            top5.update(prec5[0], inputs.size(0))
-
-        print_logger.info(
-            'Epoch[{0}]({1}/{2}): '
-            'Prec@1(1,5) {top1.avg:.2f}, {top5.avg:.2f}'.format(
-                epoch, batch_idx, num_iterations, top1=top1, top5=top5))
-
-    if top1.avg > best_acc:
-        print_logger.info('Saving to '+args.arch+'_cov'+str(cov_id)+'.pt')
-        state = {
-            'state_dict': net.state_dict(),
-            'best_prec1': top1.avg,
-            'epoch': epoch,
-            'scheduler':scheduler.state_dict(),
-            'optimizer': optimizer.state_dict() 
-        }
-        if not os.path.isdir(args.job_dir+'/pruned_checkpoint'):
-            os.mkdir(args.job_dir+'/pruned_checkpoint')
-        best_acc = top1.avg
-        torch.save(state, args.job_dir+'/pruned_checkpoint/'+args.arch+'_cov'+str(cov_id)+'.pt')
-
-    print_logger.info("=>Best accuracy {:.3f}".format(best_acc))
-
-
-if len(args.gpu)>1:
-    convcfg = net.module.covcfg
-else:
-    convcfg = net.covcfg
-
-param_per_cov_dic={
-    'vgg_16_bn': 4,
-    'densenet_40': 3,
-    'googlenet': 28,
-    'resnet_50':3,
-    'resnet_56':3,
-    'resnet_110':3
-}
-
-if len(args.gpu)>1:
-    print_logger.info('compress rate: ' + str(net.module.compress_rate))
-else:
-    print_logger.info('compress rate: ' + str(net.compress_rate))
-
-for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 1에서 12번의 rank_conv 방문)
-    # Load pruned_checkpoint
-    print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
-
-    m.layer_mask(cov_id + 1, resume=args.resume_mask, param_per_cov=param_per_cov_dic[args.arch], arch=args.arch)
-
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_decay_step, gamma=0.1)
-
-    if cov_id == 0:
-        if len(device_ids) == 1:
-            pruned_checkpoint = torch.load(args.resume, map_location='cuda:0')  # load pretrained full-model
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
         else:
-            pruned_checkpoint = torch.load(args.resume) #load pretrained full-model
+            resume=self.job_dir+'mask'
 
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        if args.arch == 'resnet_50':
-            tmp_ckpt = pruned_checkpoint
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params): #주의점: rank는 relu이후에 계산되지면, pruning이 적용되는건 conv weight에 적용이 된다
+
+            if index == cov_id * param_per_cov:
+                break
+            if index == (cov_id - 1) * param_per_cov:
+                f, c, w, h = item.size()
+                rank = np.load(prefix + str(cov_id) + subfix)
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id (상위 indice)
+
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+                self.mask[index] = zeros  # covolutional weight에 binary masking을 만들어줌 (output 쪽에 씌워주는게 아니라)
+                item.data = item.data * self.mask[index]
+
+            if index > (cov_id - 1) * param_per_cov and index <= (cov_id - 1) * param_per_cov + param_per_cov-1: #conv 씌워준 다음에 다음 conv 전까지의 bn과 relu에서 동작됨
+                self.mask[index] = torch.squeeze(zeros) #conv weight에 씌워줬던 동일한 mask (zeros)를 BN과 ReLU에도 씌워줌
+                item.data = item.data * self.mask[index]
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == cov_id * self.param_per_cov:
+                break
+            item.data = item.data * self.mask[index]#prune certain weight
+
+
+class mask_resnet_56:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.mask = {}
+        self.job_dir=job_dir
+        self.device = device
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_56"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
+
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
         else:
-            tmp_ckpt = pruned_checkpoint['state_dict']
+            resume=self.job_dir+'/mask'
 
-        if len(args.gpu) > 1:
-            for k, v in tmp_ckpt.items():
-                new_state_dict['module.' + k.replace('module.', '')] = v
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params):
+
+            if index == cov_id*param_per_cov:
+                break
+
+            if index == (cov_id - 1) * param_per_cov:
+                f, c, w, h = item.size()
+                rank = np.load(prefix + str(cov_id) + subfix)
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+                self.mask[index] = zeros  # covolutional weight
+                item.data = item.data * self.mask[index]
+
+            elif index > (cov_id-1)*param_per_cov and index < cov_id*param_per_cov:
+                self.mask[index] = torch.squeeze(zeros)
+                item.data = item.data * self.mask[index].to(self.device)
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == cov_id*self.param_per_cov:
+                break
+            item.data = item.data * self.mask[index].to(self.device)#prune certain weight
+
+
+class mask_densenet_40:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.job_dir=job_dir
+        self.device=device
+        self.mask = {}
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="densenet_40"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
+
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
         else:
-            for k, v in tmp_ckpt.items():
-                new_state_dict[k.replace('module.', '')] = v
+            resume=self.job_dir+'/mask'
 
-        net.load_state_dict(new_state_dict)#'''
-    else:
-        if args.arch=='resnet_50':
-            skip_list=[1,5,8,11,15,18,21,24,28,31,34,37,40,43,47,50,53]
-            if cov_id+1 not in skip_list:
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params):
+
+            if index == cov_id * param_per_cov:
+                break
+            if index == (cov_id - 1) * param_per_cov:
+                f, c, w, h = item.size()
+                rank = np.load(prefix + str(cov_id) + subfix)
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+                self.mask[index] = zeros  # covolutional weight
+                item.data = item.data * self.mask[index]
+
+            # prune BN's parameter
+            if index > (cov_id - 1) * param_per_cov and index <= (cov_id - 1) * param_per_cov + param_per_cov-1:
+                # if this BN not belong to 1st conv or transition conv --> add pre-BN mask to this mask
+                if cov_id>=2 and cov_id!=14 and cov_id!=27:
+                    self.mask[index] = torch.cat([self.mask[index-param_per_cov], torch.squeeze(zeros)], 0).to(self.device)
+                else:
+                    self.mask[index] = torch.squeeze(zeros).to(self.device)
+                item.data = item.data * self.mask[index]
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == cov_id * self.param_per_cov:
+                break
+            item.data = item.data * self.mask[index].to(self.device)
+
+
+class mask_googlenet:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.mask = {}
+        self.job_dir=job_dir
+        self.device = device
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=28,  arch="googlenet"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
+
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
+        else:
+            resume=self.job_dir+'/mask'
+
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params):
+
+            if index == (cov_id-1) * param_per_cov + 4:
+                break
+            if (cov_id==1 and index==0)\
+                    or index == (cov_id - 1) * param_per_cov - 24 \
+                    or index == (cov_id - 1) * param_per_cov - 16 \
+                    or index == (cov_id - 1) * param_per_cov - 8 \
+                    or index == (cov_id - 1) * param_per_cov - 4 \
+                    or index == (cov_id - 1) * param_per_cov:
+
+                if index == (cov_id - 1) * param_per_cov - 24:
+                    rank = np.load(prefix + str(cov_id)+'_'+'n1x1' + subfix)
+                elif index == (cov_id - 1) * param_per_cov - 16:
+                    rank = np.load(prefix + str(cov_id)+'_'+'n3x3' + subfix)
+                elif index == (cov_id - 1) * param_per_cov - 8 \
+                        or index == (cov_id - 1) * param_per_cov - 4:
+                    rank = np.load(prefix + str(cov_id)+'_'+'n5x5' + subfix)
+                elif cov_id==1 and index==0:
+                    rank = np.load(prefix + str(cov_id) + subfix)
+                else:
+                    rank = np.load(prefix + str(cov_id) + '_' + 'pool_planes' + subfix)
+
+                f, c, w, h = item.size()
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+                self.mask[index] = zeros  # covolutional weight
+                item.data = item.data * self.mask[index]
+
+            elif cov_id==1 and index > 0 and index <= 3:
+                self.mask[index] = torch.squeeze(zeros)
+                item.data = item.data * self.mask[index]
+
+            elif (index>=(cov_id - 1) * param_per_cov - 20 and index< (cov_id - 1) * param_per_cov - 16) \
+                    or (index>=(cov_id - 1) * param_per_cov - 12 and index< (cov_id - 1) * param_per_cov - 8):
                 continue
-            else:
-                pruned_checkpoint = torch.load(
-                    args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(skip_list[skip_list.index(cov_id+1)-1]) + '.pt')
-                net.load_state_dict(pruned_checkpoint['state_dict'])
-        else:
-            if len(args.gpu) == 1:
-                pruned_checkpoint = torch.load(args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt', map_location='cuda:0')
-            else:
-                pruned_checkpoint = torch.load(args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt')
-            net.load_state_dict(pruned_checkpoint['state_dict'])
 
-    # args.epochs = 1 #########################삭제해야됨
-    best_acc=0.
-    for epoch in range(0, args.epochs):
-        train(epoch, cov_id + 1, optimizer, scheduler)
-        scheduler.step()
-        test(epoch, cov_id + 1, optimizer, scheduler)
+            elif index > (cov_id-1)*param_per_cov-24 and index < (cov_id-1)*param_per_cov+4:
+                self.mask[index] = torch.squeeze(zeros)
+                item.data = item.data * self.mask[index]
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == (cov_id-1) * self.param_per_cov + 4:
+                break
+            if index not in self.mask:
+                continue
+            item.data = item.data * self.mask[index].to(self.device)#prune certain weight
+
+
+class mask_resnet_110:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.mask = {}
+        self.job_dir=job_dir
+        self.device = device
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_110_convwise"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
+
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
+        else:
+            resume=self.job_dir+'/mask'
+
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params):
+
+            if index == cov_id*param_per_cov:
+                break
+
+            if index == (cov_id - 1) * param_per_cov:
+                f, c, w, h = item.size()
+                rank = np.load(prefix + str(cov_id) + subfix)
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)
+
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+
+                self.mask[index] = zeros  # covolutional weight
+                item.data = item.data * self.mask[index]
+
+            elif index > (cov_id-1)*param_per_cov and index < cov_id*param_per_cov:
+                self.mask[index] = torch.squeeze(zeros)
+                item.data = item.data * self.mask[index]
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == cov_id*self.param_per_cov:
+                break
+            item.data = item.data * self.mask[index].to(self.device)#prune certain weight
+
+
+class mask_resnet_50:
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+        self.model = model
+        self.compress_rate = compress_rate
+        self.mask = {}
+        self.job_dir=job_dir
+        self.device = device
+
+    def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_50_convwise"):
+        params = self.model.parameters()
+        prefix = "rank_conv/"+arch+"/rank_conv"
+        subfix = ".npy"
+
+        if resume:
+            with open(resume, 'rb') as f:
+                self.mask = pickle.load(f)
+        else:
+            resume=self.job_dir+'/mask'
+
+        self.param_per_cov=param_per_cov
+
+        for index, item in enumerate(params):
+
+            if index == cov_id * param_per_cov:
+                break
+
+            if index == (cov_id-1) * param_per_cov:
+                f, c, w, h = item.size()
+                rank = np.load(prefix + str(cov_id) + subfix)
+                pruned_num = int(self.compress_rate[cov_id - 1] * f)
+                ind = np.argsort(rank)[pruned_num:]  # preserved filter id
+                zeros = torch.zeros(f, 1, 1, 1).to(self.device)#.cuda(self.device[0])#.to(self.device)
+                for i in range(len(ind)):
+                    zeros[ind[i], 0, 0, 0] = 1.
+                self.mask[index] = zeros  # covolutional weight
+                item.data = item.data * self.mask[index]
+
+            elif index > (cov_id-1) * param_per_cov and index < cov_id * param_per_cov:
+                self.mask[index] = torch.squeeze(zeros)
+                item.data = item.data * self.mask[index]
+
+        with open(resume, "wb") as f:
+            pickle.dump(self.mask, f)
+
+    def grad_mask(self, cov_id):
+        params = self.model.parameters()
+        for index, item in enumerate(params):
+            if index == cov_id * self.param_per_cov:
+                break
+            item.data = item.data * self.mask[index]#prune certain weight
+  

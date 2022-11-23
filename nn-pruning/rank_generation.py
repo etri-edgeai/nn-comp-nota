@@ -13,10 +13,10 @@ from utils import progress_bar
 import numpy as np
 parser = argparse.ArgumentParser(description='Rank extraction')
 
-parser.add_argument('--data_dir',   type=str, default='./data/imagenet/', help='dataset path')
-parser.add_argument('--dataset',    type=str, default='imagenet', choices=('cifar10','imagenet'), help='dataset')
+parser.add_argument('--data_dir',   type=str, default='./data/', help='dataset path')
+parser.add_argument('--dataset',    type=str, default='cifar10', choices=('cifar10','imagenet'), help='dataset')
 parser.add_argument('--job_dir',    type=str, default='result/tmp', help='The directory where the summaries will be stored.')
-parser.add_argument('--arch',       type=str, default='resnet_50', choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'), help='The architecture to prune')
+parser.add_argument('--arch',       type=str, default='googlenet', choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'), help='The architecture to prune')
 parser.add_argument('--resume',     type=str, default='./checkpoints/', help='load the model from the specified checkpoint')
 parser.add_argument('--limit',      type=int, default=1, help='The num of batch to get rank.')
 parser.add_argument('--train_batch_size', type=int, default=128, help='Batch size for training.')
@@ -104,7 +104,7 @@ print(compress_rate)
 net = eval(args.arch)(compress_rate = compress_rate)
 net = net.to(device)
 from torchsummary import summary
-summary(net, (3, 224, 224))
+summary(net, (3, 32, 32))
 
 'GPU Check'
 if len(args.gpu)>1 and torch.cuda.is_available():
@@ -117,17 +117,17 @@ if len(args.gpu)>1 and torch.cuda.is_available():
 if args.resume:
     # Load checkpoint (i.e. pretrained full model).
     print('==> Resuming from checkpoint..')
-    # checkpoint = torch.load(args.resume + "h", map_location='cpu')
+    checkpoint = torch.load(args.resume, map_location='cpu')
 
-    # from collections import OrderedDict
-    # new_state_dict = OrderedDict()
-    # if args.adjust_ckpt:
-    #     for k, v in checkpoint.items():
-    #         new_state_dict[k.replace('module.', '')] = v
-    # else:
-    #     for k, v in checkpoint['state_dict'].items():
-    #         new_state_dict[k.replace('module.', '')] = v
-    net.load_state_dict(torch.load(args.resume + "h", map_location='cpu'))
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    if args.adjust_ckpt:
+        for k, v in checkpoint.items():
+            new_state_dict[k.replace('module.', '')] = v
+    else:
+        for k, v in checkpoint['state_dict'].items():
+            new_state_dict[k.replace('module.', '')] = v
+    # net.load_state_dict(torch.load(args.resume, map_location='cpu'))
 
 
 criterion      = nn.CrossEntropyLoss()

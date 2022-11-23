@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='1',
+    default='2, 3',
     help='Select gpu to use')
 parser.add_argument(
     '--job_dir',
@@ -81,12 +81,12 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
+    default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]',
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='resnet_56',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 
@@ -155,7 +155,7 @@ if args.compress_rate:
 
     compress_rate=cprate
 
-compress_rate = compute_ratio(args, print_logger=print_logger)
+# compress_rate = compute_ratio(args, print_logger=print_logger)
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model
 device_ids=list(map(int, args.gpu.split(',')))

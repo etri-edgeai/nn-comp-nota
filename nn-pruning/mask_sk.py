@@ -17,7 +17,7 @@ class mask_vgg_16_bn:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -72,7 +72,7 @@ class mask_resnet_56:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -127,7 +127,7 @@ class mask_densenet_40:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -186,7 +186,7 @@ class mask_googlenet:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -267,7 +267,7 @@ class mask_resnet_110:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -324,7 +324,7 @@ class mask_resnet_50:
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "/rank_conv_skyeom"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:

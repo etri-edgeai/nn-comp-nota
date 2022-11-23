@@ -388,10 +388,10 @@ elif args.arch =='densenet_40':
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
 
-    number = 0
+    # number = 0
     for index, module1 in net.named_modules():
         if isinstance(module1, nn.Conv2d):
-            number  = number + 1
+            # number  = number + 1
             handler = module1.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
@@ -557,3 +557,36 @@ elif args.arch  == 'googlenet':
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
+
+    # # branch type
+    # tp_list=['n1x1','n3x3','n5x5','pool_planes']
+    # for idx, cov in enumerate(cov_list):
+
+    #     if idx<args.start_idx:
+    #         continue
+    #     cov_layer=eval('net.'+cov)
+    #     print(cov_layer)
+
+    #     handler = cov_layer.register_forward_hook(get_feature_hook)
+    #     test()
+    #     handler.remove()
+
+    #     print(feature_result.shape)
+
+    #     if idx>0:
+    #         for idx1,tp in enumerate(tp_list):
+    #             if idx1==3:
+    #                 np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_'%(idx+1)+tp+'.npy',
+    #                         feature_result[sum(net.filters[idx-1][:-1]) : sum(net.filters[idx-1][:])].numpy())
+    #             #elif idx1==0:
+    #             #    np.save('rank_conv1/' + args.arch + '/rank_conv%d_'%(idx+1)+tp+'.npy',
+    #             #            feature_result[0 : sum(net.filters[idx-1][:1])].numpy())
+    #             else:
+    #                 np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp + '.npy',
+    #                         feature_result[sum(net.filters[idx-1][:idx1]) : sum(net.filters[idx-1][:idx1+1])].numpy())
+    #     #idx == 0
+    #     else:
+    #         print(idx)
+    #         np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',feature_result.numpy())
+    #     feature_result = torch.tensor(0.)
+    #     total = torch.tensor(0.)

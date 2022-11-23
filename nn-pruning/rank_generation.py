@@ -379,7 +379,21 @@ elif args.arch=='googlenet':
               ]
 
     # branch type
-    tp_list=['branch1x1','branch3x3','branch5x5','pool_planes']
+    tp_list = ['branch1x1', 'branch3x3', 'branch3x3', 'branch5x5', 'branch5x5', 'branch5x5','pool_planes']
+    for index1, module1 in net.named_modules():
+        if isinstance(module1, nn.Conv2d):
+            # print(f"{module1}")
+            handler = module1.register_forward_hook(get_feature_hook)
+            test()
+            handler.remove()
+
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[
+                count] + '_' + str(j + 1) + '.npy',
+                    feature_result.numpy())
+            
+            feature_result = torch.tensor(0.)
+            total = torch.tensor(0.)
+
     for idx, cov in enumerate(cov_list):
         cov_idx = [0, 3, 6]
 
@@ -389,21 +403,23 @@ elif args.arch=='googlenet':
 
         if idx > 0:
             i = 0
+            count = 0
             while i < 3:
                 i += 1
                 for tp_num, j in enumerate(range(i)):
                     # print(f'i and tp_num: {i-1}{tp_num}')
 
-                    cov = eval('cov_layer.'+tp_list[tp_num] + '[' + str(cov_idx[j]) + ']')
+                    cov = eval('cov_layer.'+tp_list[count] + '[' + str(cov_idx[j]) + ']')
                     handler = cov.register_forward_hook(get_feature_hook)
                     test()
                     handler.remove()
 
-                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[i-1] + str(tp_num) + '.npy',
+                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[count] + '_' + str(j+1) + '.npy',
                             feature_result.numpy())
 
                     feature_result = torch.tensor(0.)
                     total = torch.tensor(0.)
+                    count += 1
 
             # pool_planes
             cov = cov_layer.branch_pool[1]
@@ -411,7 +427,7 @@ elif args.arch=='googlenet':
             test()
             handler.remove()
 
-            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[3] + '.npy',
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp_list[-1] + '.npy',
                     feature_result.numpy())
 
         else:

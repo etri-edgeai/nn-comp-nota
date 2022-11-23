@@ -1,4 +1,3 @@
-
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -18,7 +17,7 @@ parser = argparse.ArgumentParser(description='Rank extraction')
 parser.add_argument(
     '--data_dir',
     type=str,
-    default='./data',
+    default='/ssd7/skyeom/data',
     help='dataset path')
 parser.add_argument(
     '--dataset',
@@ -74,7 +73,7 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.10]+[0.8]*5+[0.85]+[0.8]*3',
+    default='[0.2]+[0.8]*10+[0.8]*13+[0.55]*19+[0.45]*10',
     help='compress rate of each conv')
 
 
@@ -341,7 +340,7 @@ elif args.arch=='densenet_40':
         if i<2:
             trans=eval('net.trans%d' % (i + 1))
             cov_layer = trans.conv1
-    
+
             handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
             test()
             handler.remove()
@@ -367,41 +366,61 @@ elif args.arch=='googlenet':
 
     cov_list=['pre_layers',
               'inception_a3',
+              'inception_b3',
               'maxpool1',
               'inception_a4',
               'inception_b4',
               'inception_c4',
               'inception_d4',
+              'inception_e4',
               'maxpool2',
               'inception_a5',
               'inception_b5',
               ]
 
     # branch type
-    tp_list=['n1x1','n3x3','n5x5','pool_planes']
+    tp_list=['branch1x1','branch3x3','branch5x5','pool_planes']
     for idx, cov in enumerate(cov_list):
+        cov_idx = [0, 3, 6]
 
         if idx<args.start_idx:
             continue
         cov_layer=eval('net.'+cov)
 
-        handler = cov_layer.register_forward_hook(get_feature_hook)
-        test()
-        handler.remove()
+        if idx > 0:
+            i = 0
+            while i < 3:
+                i += 1
+                for tp_num, j in enumerate(range(i)):
+                    # print(f'i and tp_num: {i-1}{tp_num}')
 
-        if idx>0:
-            for idx1,tp in enumerate(tp_list):
-                if idx1==3:
-                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_'%(idx+1)+tp+'.npy',
-                            feature_result[sum(net.filters[idx-1][:-1]) : sum(net.filters[idx-1][:])].numpy())
-                #elif idx1==0:
-                #    np.save('rank_conv1/' + args.arch + '/rank_conv%d_'%(idx+1)+tp+'.npy',
-                #            feature_result[0 : sum(net.filters[idx-1][:1])].numpy())
-                else:
-                    np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d_' % (idx + 1) + tp + '.npy',
-                            feature_result[sum(net.filters[idx-1][:idx1]) : sum(net.filters[idx-1][:idx1+1])].numpy())
+                    cov = eval('cov_layer.'+tp_list[tp_num] + '[' + str(cov_idx[j]) + ']')
+                    handler = cov.register_forward_hook(get_feature_hook)
+                    test()
+                    handler.remove()
+
+                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + str(i-1) + str(tp_num) + '.npy',
+                            feature_result.numpy())
+
+                    feature_result = torch.tensor(0.)
+                    total = torch.tensor(0.)
+
+            # pool_planes
+            cov = cov_layer.branch_pool[1]
+            handler = cov.register_forward_hook(get_feature_hook)
+            test()
+            handler.remove()
+
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d_' % (idx + 1) + '0.npy',
+                    feature_result.numpy())
+
         else:
-            np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',feature_result.numpy())
+            handler = cov_layer.register_forward_hook(get_feature_hook)
+            test()
+            handler.remove()
+            np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',
+                    feature_result.numpy())
+
         feature_result = torch.tensor(0.)
         total = torch.tensor(0.)
 

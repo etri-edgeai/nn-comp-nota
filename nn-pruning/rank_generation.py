@@ -13,10 +13,10 @@ from utils import progress_bar
 import numpy as np
 parser = argparse.ArgumentParser(description='Rank extraction')
 
-parser.add_argument('--data_dir',   type=str, default='./data/', help='dataset path')
+parser.add_argument('--data_dir',   type=str, default='./data', help='dataset path') #/data/imagnet
 parser.add_argument('--dataset',    type=str, default='cifar10', choices=('cifar10','imagenet'), help='dataset')
 parser.add_argument('--job_dir',    type=str, default='result/tmp', help='The directory where the summaries will be stored.')
-parser.add_argument('--arch',       type=str, default='googlenet', choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'), help='The architecture to prune')
+parser.add_argument('--arch',       type=str, default='resnet_110', choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'), help='The architecture to prune')
 parser.add_argument('--resume',     type=str, default='./checkpoints/', help='load the model from the specified checkpoint')
 parser.add_argument('--limit',      type=int, default=1, help='The num of batch to get rank.')
 parser.add_argument('--train_batch_size', type=int, default=128, help='Batch size for training.')
@@ -30,7 +30,7 @@ parser.add_argument('--compress_rate',    type=str, default=None, help='compress
 # 'resnet_56'  : [0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4],
 # 'resnet_110' : [0.1]+[0.40]*36+[0.40]*36+[0.4]*36
 # 'densenet_40': [0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0],
-# 'googlenet'  : [0.10]+[0.7]+[0.5]+[0.8]*4+[0.5]+[0.6]*2,
+# 'googlenet'  : [0.10]+[0.8]*5+[0.85]+[0.8]*3,
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
@@ -62,9 +62,9 @@ if args.dataset=='cifar10':
     testset = torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 elif args.dataset=='imagenet':
-    data_tmp = imagenet.Data(args)
+    data_tmp    = imagenet.Data(args)
     trainloader = data_tmp.loader_train
-    testloader = data_tmp.loader_test
+    testloader  = data_tmp.loader_test
 
 if args.compress_rate:
     import re
@@ -114,10 +114,13 @@ if len(args.gpu)>1 and torch.cuda.is_available():
     net = torch.nn.DataParallel(net, device_ids=device_id)
 
 'Load checkpoint'
-if args.resume:
-    # Load checkpoint (i.e. pretrained full model).
+if args.resume: # Load checkpoint (i.e. pretrained full model).
     print('==> Resuming from checkpoint..')
-    checkpoint = torch.load(args.resume, map_location='cpu')
+
+    # if args.arch == "resnet_50":
+    #     checkpoint = torch.load(args.resume + "h")
+    #     net.load_state_dict(checkpoint)
+    checkpoint = torch.load(args.resume, map_location = 'cpu')
 
     from collections import OrderedDict
     new_state_dict = OrderedDict()
@@ -174,7 +177,6 @@ def get_feature_hook_densenet(self, input, output):
 
     ########### Seul-Ki's approach
     c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b-12, b)])
-    print(c.shape)
 
     feature_result = feature_result * total + c
     total          = total + a
@@ -194,7 +196,6 @@ def get_feature_hook_googlenet(self, input, output):
 
     ########### Seul-Ki's approach
     c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b-12, b)])
-    print(c.shape)
 
     feature_result = feature_result * total + c
     total          = total + a
@@ -253,7 +254,6 @@ if args.arch   =='vgg_16_bn':
 
         if not os.path.isdir('rank_conv/'+ args.arch + '_limit%d'%(args.limit)):
             os.mkdir('rank_conv/'+args.arch+'_limit%d'%(args.limit))
-        print(feature_result.shape)
         np.save('rank_conv/'+args.arch+'_limit%d'%(args.limit)+'/rank_conv_w' + str(i + 1) + '.npy', feature_result.numpy())
 
         feature_result = torch.tensor(0.)
@@ -312,7 +312,6 @@ elif args.arch =='resnet_50':
 
 elif args.arch =='resnet_56':
     cov_layer = eval('net.conv1')
-    print(cov_layer)
     handler = cov_layer.register_forward_hook(get_feature_hook)
     test()
     handler.remove()
@@ -388,47 +387,46 @@ elif args.arch =='densenet_40':
     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
 
-    # number = 0
-    for index, module1 in net.named_modules():
-        if isinstance(module1, nn.Conv2d):
-            # number  = number + 1
-            handler = module1.register_forward_hook(get_feature_hook)
+    # # number = 0
+    # for index, module1 in net.named_modules():
+    #     if isinstance(module1, nn.Conv2d):
+    #         # number  = number + 1
+    #         handler = module1.register_forward_hook(get_feature_hook)
+    #         test()
+    #         handler.remove()
+    #         np.save('rank_conv/' + args.arch + '_limit%d'%(args.limit) + "/" + str(number) + '.npy', feature_result.numpy())
+    #         feature_result = torch.tensor(0.)
+    #         total          = torch.tensor(0.)
+
+    # Densenet per block & transition
+    for i in range(3):
+        dense = eval('net.dense%d' % (i + 1))
+        for j in range(12):
+            cov_layer = dense[j].conv1
+            # print(cov_layer)
+            if j==0:
+                handler = cov_layer.register_forward_hook(get_feature_hook)
+            else:
+                handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
             test()
             handler.remove()
-            print(feature_result.shape)
-            np.save('rank_conv/' + args.arch + '_limit%d'%(args.limit) + "/" + str(number) + '.npy', feature_result.numpy())
+
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d'%(13*i+j+1)+'.npy', feature_result.numpy())
             feature_result = torch.tensor(0.)
-            total          = torch.tensor(0.)
+            total = torch.tensor(0.)
 
-    # # Densenet per block & transition
-    # for i in range(3):
-    #     dense = eval('net.dense%d' % (i + 1))
-    #     for j in range(12):
-    #         cov_layer = dense[j].conv1
-    #         # print(cov_layer)
-    #         if j==0:
-    #             handler = cov_layer.register_forward_hook(get_feature_hook)
-    #         else:
-    #             handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
-    #         test()
-    #         handler.remove()
-
-    #         np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d'%(13*i+j+1)+'.npy', feature_result.numpy())
-    #         feature_result = torch.tensor(0.)
-    #         total = torch.tensor(0.)
-
-    #     if i<2:
-    #         trans=eval('net.trans%d' % (i + 1))
-    #         cov_layer = trans.conv1
-    #         # print(cov_layer)
+        if i<2:
+            trans=eval('net.trans%d' % (i + 1))
+            cov_layer = trans.conv1
+            # print(cov_layer)
     
-    #         handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
-    #         test()
-    #         handler.remove()
+            handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
+            test()
+            handler.remove()
 
-    #         np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d' % (13 * (i+1)) + '.npy', feature_result.numpy())
-    #         feature_result = torch.tensor(0.)
-    #         total = torch.tensor(0.)#'''
+            np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + '/rank_conv_w%d' % (13 * (i+1)) + '.npy', feature_result.numpy())
+            feature_result = torch.tensor(0.)
+            total = torch.tensor(0.)#'''
 
     feature_result = torch.tensor(0.)
     total          = torch.tensor(0.)
@@ -589,4 +587,4 @@ elif args.arch  == 'googlenet':
     #         print(idx)
     #         np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + '/rank_conv_w%d' % (idx + 1) + '.npy',feature_result.numpy())
     #     feature_result = torch.tensor(0.)
-    #     total = torch.tensor(0.)
+    #     total = torch.tensor(0.)  

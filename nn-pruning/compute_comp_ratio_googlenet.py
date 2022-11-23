@@ -141,7 +141,7 @@ def compute_ratio(args, print_logger=None):
     pruned_filters = 0
     tot_filter_hrank = 0
     tot_filter = 0
-    prefix = "rank_conv/original_googlenet/"
+    prefix = "rank_conv/original_hrank_save/googlenet/"
 
     # test = np.load("./rank_conv/original_googlenet/rank_conv1.npy")
     arr = sorted(os.listdir(prefix))
@@ -169,7 +169,7 @@ def compute_ratio(args, print_logger=None):
         # Load pruned_checkpoint
         print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-        prefix = "rank_conv/" + args.arch + "_limit1/"
+        prefix = "rank_conv/" + args.arch + "/"
         subfix = ".npy"
 
         rank[cov_id] = np.load(prefix + str(cov_id + 1) + subfix)

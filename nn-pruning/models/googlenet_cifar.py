@@ -3,11 +3,9 @@
 import torch
 import torch.nn as nn
 
-
 norm_mean, norm_var = 0.0, 1.0
 
 cov_cfg=[(22*i+2) for i in range(1+2+5+2)]
-
 
 class Inception(nn.Module):
     def __init__(self, in_planes, n1x1, n3x3red, n3x3, n5x5red, n5x5, pool_planes, cp_rate, tmp_name):

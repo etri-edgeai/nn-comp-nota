@@ -1,9 +1,7 @@
 
 import torch
-import numpy as np
-
 import pickle
-
+import numpy as np
 
 class mask_vgg_16_bn:
     def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
@@ -351,3 +349,4 @@ class mask_resnet_50:
             if index == cov_id * self.param_per_cov:
                 break
             item.data = item.data * self.mask[index]#prune certain weight
+  

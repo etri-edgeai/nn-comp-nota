@@ -314,7 +314,7 @@ for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 
                 pruned_checkpoint = torch.load(args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt')
             net.load_state_dict(pruned_checkpoint['state_dict'])
 
-    args.epochs = 1 #########################삭제해야됨
+    # args.epochs = 1 #########################삭제해야됨
     best_acc=0.
     for epoch in range(0, args.epochs):
         train(epoch, cov_id + 1, optimizer, scheduler)

@@ -531,12 +531,13 @@ def rank_generation_sum(net, args, trainloader, device, energy=False):
         return rank
 
 
-def rank_generation_energy(net, args, trainloader, device, energy=False):
-    global feature_result, total, batch_count
+def rank_generation_wr(net, args, trainloader, device):
+    global feature_result, total, batch_count, min_rank
     criterion = nn.CrossEntropyLoss()
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
     batch_count = 0
+    min_rank = 0
     rank = []
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -545,20 +546,19 @@ def rank_generation_energy(net, args, trainloader, device, energy=False):
     def get_feature_hook_googlenet
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def get_feature_hook(self, input, output):
-        global feature_result, total, batch_count
-        a = output.shape[0]  # batch
-        b = output.shape[1]  # filter
+        global feature_result, total, batch_count, min_rank
+        # a = output.shape[0]  # batch
+        # b = output.shape[1]  # filter
+        a = self.weight.shape[1]  # w in
+        b = self.weight.shape[0] # w output = filter
         import numpy as np
 
-        c = []
-        for i in range(b):
-            x = torch.svd(output.view(a, b, -1)[:, i, :])[1]
-            f = (torch.pow(x, 2) / (torch.pow(x, 2).sum()))
-            E = (-1 / torch.log(torch.tensor(len(f[f.nonzero(as_tuple=False)])).float())) * (
-                    f[f.nonzero(as_tuple=False)] * torch.log(f[f.nonzero(as_tuple=False)])).sum()
-            c.append(E)
+        ########## Seul-Ki's approach (version2)
+        c = torch.tensor([torch.svd(self.weight.view(b, a, -1)[i, :, :])[1].sum() for i in range(b)])
+        # c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b)])
+        min_rank = min(self.weight.view(b, a, -1)[0, :, :].shape)
 
-        feature_result = feature_result * total + torch.tensor(c)
+        feature_result = feature_result * total + c
         total = total + a
         feature_result = feature_result / total
 
@@ -577,7 +577,9 @@ def rank_generation_energy(net, args, trainloader, device, energy=False):
         # feature_result = feature_result / total
 
         ########### Seul-Ki's approach (version2)
-        c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        # c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b-12, b)])
+        print(len(output.view(a, b, -1)[:, 0, :]))
 
         feature_result = feature_result * total + c
         total = total + a
@@ -596,7 +598,9 @@ def rank_generation_energy(net, args, trainloader, device, energy=False):
         # c = c.sum(0)
 
         ########### Seul-Ki's approach (version2)
-        c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        # c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b - 12, b)])
+        print(len(output.view(a, b, -1)[:, 0, :]))
 
         feature_result = feature_result * total + c
         total = total + a
@@ -633,12 +637,14 @@ def rank_generation_energy(net, args, trainloader, device, energy=False):
     model module
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     if args.arch in ['vgg_16_bn', 'resnet_56', 'resnet_110', 'googlenet']:
+        rank_num = []
         for name, cov_layer in net.named_modules():  # vgg_16_bn, resnet_56, resnet_110, googlenet
-            if isinstance(cov_layer, nn.BatchNorm2d):
+            if isinstance(cov_layer, nn.Conv2d):
                 handler = cov_layer.register_forward_hook(get_feature_hook)
                 test()
                 handler.remove()
 
+                rank_num.append(min_rank)
                 rank.append(feature_result.numpy())
                 feature_result = torch.tensor(0.)
                 total = torch.tensor(0.)
@@ -659,7 +665,7 @@ def rank_generation_energy(net, args, trainloader, device, energy=False):
         #             feature_result = torch.tensor(0.)
         #             total = torch.tensor(0.)
 
-        return rank
+        return rank, rank_num
 
     elif args.arch =='resnet_50':
 
@@ -938,7 +944,7 @@ if __name__=='__main__':
                     new_state_dict[k.replace('module.', '')] = v
             net.load_state_dict(new_state_dict)
 
-    rank_generation(net, args=args, trainloader=trainloader, device=device, energy=False)
+    # rank_generation(net, args=args, trainloader=trainloader, device=device, energy=False)
     # rank, rank_num = rank_generation_sum(net, args=args, trainloader=trainloader, device=device, energy=False)
-    # rank = rank_generation_energy(net, args=args, trainloader=trainloader, device=device, energy=True)
+    rank, rank_num = rank_generation_wr(net, args=args, trainloader=trainloader, device=device)
     print(f'finish')

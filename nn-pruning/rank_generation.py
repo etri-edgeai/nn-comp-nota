@@ -64,7 +64,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='7',
+    default='6',
     help='Select gpu to use')
 parser.add_argument(
     '--adjust_ckpt',
@@ -264,14 +264,15 @@ def get_feature_hook_in(self, input, output):
     global entropy
     global total
     global batch_count
-    a = input.shape[0] #batch
-    b = input.shape[1] #filter
-
+    a = input[0].shape[0] #batch
+    b = input[0].shape[1] #filter
+    # print(f'input shape: {input[0].shape}')
+    # print(f'batch:{a} and filter:{b}')
     ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
     if total == 0:
-        feature_result = input.view(a, b, -1)
+        feature_result = input[0].view(a, b, -1)
     else:
-        feature_result = torch.cat((feature_result, input.view(a, b, -1)), dim=0)
+        feature_result = torch.cat((feature_result, input[0].view(a, b, -1)), dim=0)
 
     total = total + a
     batch_count += 1
@@ -285,14 +286,14 @@ def get_feature_hook_densenet_in(self, input, output):
     global feature_result
     global total
     global batch_count
-    a = input.shape[0] #batch
-    b = input.shape[1] #filter
+    a = input[0].shape[0] #batch
+    b = input[0].shape[1] #filter
 
     ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
     if total == 0:
-        feature_result = input.view(a, b, -1)
+        feature_result = input[0].view(a, b, -1)
     else:
-        feature_result = torch.cat((feature_result, input.view(a, b, -1)), dim=0)
+        feature_result = torch.cat((feature_result, input[0].view(a, b, -1)), dim=0)
 
     total = total + a
     batch_count += 1

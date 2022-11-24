@@ -31,13 +31,13 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='vgg_16_bn',
+    default='densenet_40',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
     '--test_model_dir',
     type=str,
-    default='./result/vgg_16_bn/skyeom_new',
+    default='./result/densenet_40/skyeom',
     help='The directory where the summaries will be stored.')
 parser.add_argument(
     '--eval_batch_size',

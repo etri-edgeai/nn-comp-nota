@@ -550,7 +550,7 @@ elif args.arch=='densenet_40':
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)#'''
 
-    cov_layer = net.bn1
+    cov_layer = net.bn #covert relu into bn
     handler = cov_layer.register_forward_hook(get_feature_hook_densenet_in)
     test()
     handler.remove()

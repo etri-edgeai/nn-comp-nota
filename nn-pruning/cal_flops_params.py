@@ -79,18 +79,21 @@ if args.compress_rate:
     print(compress_rate)
 
 args.compress_rate = cprate
+#
+# if args.arch == 'googlenet':
+#     compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
+# else:
+#     compress_rate = compute_ratio(args, print_logger=print_logger)
+#     if args.arch == 'vgg_16_bn':
+#         compress_rate = compress_rate + [0.]
+# # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
+# # Model
+#
+# if args.arch=='vgg_16_bn':
+#     compress_rate[12]=0.
 
-if args.arch == 'googlenet':
-    compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
-else:
-    compress_rate = compute_ratio(args, print_logger=print_logger)
-    if args.arch == 'vgg_16_bn':
-        compress_rate = compress_rate + [0.]
-# compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
-# Model
 
-if args.arch=='vgg_16_bn':
-    compress_rate[12]=0.
+compress_rate = [0.4964518384054989, 0.2849058934492172, 0.08980860036024552, 0.37073162484256195, 0.2093322216310498, 0.12194669511621586, 0.010377582469950596, 0.357737695584358, 0.01995439420085444, 0.6296248337514334, 0.45419335484341333, 0.384814073689322, 0.5206852081311238]
 
 print('==> Building model..')
 net = eval(args.arch)(compress_rate=compress_rate)

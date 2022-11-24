@@ -14,7 +14,7 @@ from models import *
 from utils import progress_bar
 from mask import *
 import utils
-from compute_comp_ratio import compute_ratio, compute_ratio_iterative, compute_ratio_nn
+from compute_comp_ratio import compute_ratio, compute_ratio_iterative, compute_ratio_nn, compute_ratio_greedy
 from compute_comp_ratio_googlenet import compute_ratio as compute_ratio_googlenet
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -91,14 +91,14 @@ parser.add_argument(
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
-    '--pruning_step',
+    '--pr_step',
     type=float,
-    default='0.05',
+    default=0.05,
     help='compress rate of each conv')
 parser.add_argument(
-    '--pr',
+    '--total_pr',
     type=float,
-    default=None,
+    default=0.75,
     help='pruning ratio')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -108,12 +108,10 @@ parser.add_argument(
     default=10,
     help='The num of batch to get rank.')
 
-
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
 
 # 'vgg_16_bn'  : [0.7]*7+[0.1]*6,
-
 # 'resnet_56'  : [0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4],
 # 'resnet_110' : [0.1]+[0.40]*36+[0.40]*36+[0.4]*36
 # 'densenet_40': [0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0],
@@ -188,18 +186,6 @@ if args.compress_rate:
 
     compress_rate = cprate
     args.compress_rate = cprate
-
-# if args.arch == 'googlenet':
-#     compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
-# elif args.arch == 'densenet_40':
-#     print(f'no global pruning')
-# else:
-#     # compress_rate = compute_ratio(args, print_logger=print_logger) #pr1
-#     compress_rate = compute_ratio_iterative(args, print_logger=print_logger) #pr2
-#     # compress_rate = compute_ratio_nn(args, print_logger=print_logger) #pr3
-#
-#     if args.arch == 'vgg_16_bn':
-#         compress_rate = compress_rate + [0.]
 
 compress_rate = [0.4964518384054989, 0.2849058934492172, 0.08980860036024552, 0.37073162484256195, 0.2093322216310498, 0.12194669511621586, 0.010377582469950596, 0.357737695584358, 0.01995439420085444, 0.6296248337514334, 0.45419335484341333, 0.384814073689322, 0.5206852081311238]
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
@@ -293,6 +279,26 @@ def test(epoch, cov_id, optimizer, scheduler):
 
     print_logger.info("=>Best accuracy {:.3f}".format(best_acc))
 
+def total_num_filters():
+    filters = 0
+
+    if len(args.gpu)>1:
+        for name, module in net.module.features.named_modules():
+            if isinstance(module, nn.Conv2d):
+                if hasattr(module, "mask"):
+                    filters += module.mask.sum()
+                else:
+                    filters += module.out_channels
+    else:
+        for name, module in net.features.named_modules():
+            if isinstance(module, nn.Conv2d):
+                if hasattr(module, "mask"):
+                    filters += module.mask.sum()
+                else:
+                    filters += module.out_channels
+
+    return filters
+
 
 if len(args.gpu)>1:
     convcfg = net.module.covcfg
@@ -313,19 +319,26 @@ if len(args.gpu)>1:
 else:
     print_logger.info('compress rate: ' + str(net.compress_rate))
 
-# print(convcfg)
-for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 1에서 12번의 rank_conv 방문)
-    # Load pruned_checkpoint
-    print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
-    m.layer_mask(cov_id + 1, resume=args.resume_mask, param_per_cov=param_per_cov_dic[args.arch], arch=args.arch)
+number_of_filters = total_num_filters()
+num_filters_to_prune_per_iteration = int(number_of_filters * args.pr_step)  # 0.05 (5%) -> 0.01 (1%) temporally
+if num_filters_to_prune_per_iteration == 0:
+    iterations = 10
+else:
+    iterations = int(
+        float(number_of_filters) / num_filters_to_prune_per_iteration)
 
+iterations = int(iterations * args.total_pr)  # up to 80%
+
+for cov_id in range(iterations): #iterative pruning
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_decay_step, gamma=0.1)
 
+    #1. Load pruned_checkpoint (first stage: load pretrained model, from second to last stage: load previous best pruned model
     if cov_id == 0:
-        pruned_checkpoint = torch.load(args.resume, map_location=device) #load pretrained full-model
+        pruned_checkpoint = torch.load(args.resume, map_location=device)  # load pretrained full-model
 
         from collections import OrderedDict
+
         new_state_dict = OrderedDict()
         if args.arch == 'resnet_50':
             tmp_ckpt = pruned_checkpoint
@@ -339,27 +352,38 @@ for cov_id in range(args.start_cov, len(convcfg)): #0에서부터 11까지 (즉 
             for k, v in tmp_ckpt.items():
                 new_state_dict[k.replace('module.', '')] = v
 
-        net.load_state_dict(new_state_dict)#'''
+        net.load_state_dict(new_state_dict)  # '''
     else:
-        if args.arch=='resnet_50':
-            skip_list=[1,5,8,11,15,18,21,24,28,31,34,37,40,43,47,50,53]
-            if cov_id+1 not in skip_list:
+        if args.arch == 'resnet_50':
+            skip_list = [1, 5, 8, 11, 15, 18, 21, 24, 28, 31, 34, 37, 40, 43, 47, 50, 53]
+            if cov_id + 1 not in skip_list:
                 continue
             else:
                 pruned_checkpoint = torch.load(
-                    args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(skip_list[skip_list.index(cov_id+1)-1]) + '.pt')
+                    args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(
+                        skip_list[skip_list.index(cov_id + 1) - 1]) + '.pt')
                 net.load_state_dict(pruned_checkpoint['state_dict'])
         else:
             if len(args.gpu) == 1:
-                pruned_checkpoint = torch.load(args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt', map_location='cuda:0')
+                pruned_checkpoint = torch.load(
+                    args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt',
+                    map_location='cuda:0')
             else:
-                pruned_checkpoint = torch.load(args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt')
+                pruned_checkpoint = torch.load(
+                    args.job_dir + "/pruned_checkpoint/" + args.arch + "_cov" + str(cov_id) + '.pt')
             net.load_state_dict(pruned_checkpoint['state_dict'])
 
-    # args.epochs = 1 #########################삭제해야됨
+    print_logger.info("iteration: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
+
+    #2. compute pruning ratio layer wisely (for each iteration)
+    compress_rate = compress_ratio_greedy(args, print_logger=print_logger) #pruning ratio 받아오는 for one iteration
+
+    #3. masking based pruning (saving the best model during test)
+    m.layer_mask(len(convcfg), resume=args.resume_mask, param_per_cov=param_per_cov_dic[args.arch], arch=args.arch) #masking
+
+    #4. Fine-tuning
     best_acc=0.
     for epoch in range(0, args.epochs):
         train(epoch, cov_id + 1, optimizer, scheduler)
         scheduler.step()
         test(epoch, cov_id + 1, optimizer, scheduler)
-   

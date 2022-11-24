@@ -5,12 +5,13 @@ import numpy as np
 
 
 class mask_vgg_16_bn:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model         = model
         self.compress_rate = compress_rate
         self.mask          = {}
         self.job_dir       = job_dir
         self.device        = device
+        self.args          = args
 
     def layer_mask(self, cov_id, resume=None, param_per_cov=4,  arch="vgg_16_bn"):
         params = self.model.parameters()
@@ -19,7 +20,7 @@ class mask_vgg_16_bn:
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
 
         # rank_cov에서 피처맵의 nulcear norm을 구한 것 로드
-        prefix = "rank_conv/" + arch + "_limit10/rank_conv_w"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -67,18 +68,19 @@ class mask_vgg_16_bn:
 
 
 class mask_resnet_56:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model = model
         self.compress_rate = compress_rate
         self.mask = {}
         self.job_dir=job_dir
         self.device = device
+        self.args = args
 
     def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_56"):
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "_limit10/rank_conv_w"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -122,18 +124,19 @@ class mask_resnet_56:
 
 
 class mask_densenet_40:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model = model
         self.compress_rate = compress_rate
         self.job_dir=job_dir
         self.device=device
         self.mask = {}
+        self.args = args
 
     def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="densenet_40"):
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "_limit10/rank_conv_w"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -181,12 +184,13 @@ class mask_densenet_40:
 
 
 class mask_googlenet:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model         = model
         self.compress_rate = compress_rate
         self.mask          = {}
         self.job_dir       = job_dir
         self.device        = device
+        self.args = args
 
         self.cov_list = ['pre_layers',
                     'inception_a3',
@@ -214,7 +218,7 @@ class mask_googlenet:
 
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "_limit10/"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         # prefix = "rank_conv/" + arch + "/"  # seulki's idea (manually by seulki)
         subfix = ".npy"
 
@@ -277,18 +281,19 @@ class mask_googlenet:
 
 
 class mask_resnet_110:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model = model
         self.compress_rate = compress_rate
         self.mask = {}
         self.job_dir=job_dir
         self.device = device
+        self.args=args
 
     def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_110_convwise"):
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "_limit10/rank_conv_w"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:
@@ -334,18 +339,19 @@ class mask_resnet_110:
 
 
 class mask_resnet_50:
-    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None):
+    def __init__(self, model=None, compress_rate=[0.50], job_dir='',device=None,args=None):
         self.model = model
         self.compress_rate = compress_rate
         self.mask = {}
         self.job_dir=job_dir
         self.device = device
+        self.args=args
 
     def layer_mask(self, cov_id, resume=None, param_per_cov=3,  arch="resnet_50_convwise"):
         params = self.model.parameters()
         # prefix = "rank_conv/"+arch+"/rank_conv"
         # prefix = "rank_conv/" + arch + "/rank_conv_hrank" #Hrank (manually by seulki)
-        prefix = "rank_conv/" + arch + "_limit10/rank_conv_w"  #seulki's idea (manually by seulki)
+        prefix = "rank_conv/" + arch + "_limit"+str(self.args.limit)+"/rank_conv_w"  #seulki's idea (manually by seulki)
         subfix = ".npy"
 
         if resume:

@@ -211,28 +211,42 @@ def get_feature_hook(self, input, output):
     # total = total + a
     # feature_result = feature_result / total
 
-    ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    if total == 0:
-        feature_result = output.view(a, b, -1)
-    else:
-        feature_result = torch.cat((feature_result, output.view(a, b, -1)), dim=0)
+    # ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
+    # # >>> [8, 64, 32, 32]
+    # # >>> [8, 64, 1024]
+    # # >>> [80, 64, 1024]
+    # # >>> 필터 수 64개에 대해서 SVD하고 nuclear norm을 계산
+    # if total == 0:
+    #     print("before", output.shape)
+    #     feature_result = output.view(a, b, -1)
+    #     print("after", feature_result.shape)
+    # else:
+    #     feature_result = torch.cat((feature_result, output.view(a, b, -1)), dim=0)
 
-    total = total + a
-    batch_count += 1
+    # total = total + a
+    # batch_count += 1
 
+    # if batch_count == args.limit:
+    #     print("last", feature_result.shape)
+    #     feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b)])
+    #     feature_result /= total
+    #     print(feature_result.shape)
+    #     batch_count = 0
+
+    ########### HyungCheol's addtional approach (based version 3) / 각 배치마다 SVD를 계산하고 누적
+    feature_result = output.view(a, b, -1)
+    feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range (b)])
+
+    # 배치 데이터마다 배치 사이즈로 나누어 주어서 정규화
+    # 그 정규화 시킨 값을 total에 누적
+    feature_result = feature_result / a
+    total          = total + feature_result
+    # print(total.shape)
+
+    batch_count    = batch_count + 1
     if batch_count == args.limit:
-        feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b)])
-        feature_result /= total
-        batch_count = 0
-        
-#     ########### HyungCheol's addtional approach (based version 3) / 각 배치마다 SVD를 계산하고 누적
-#     feature_result = output.view(a, b, -1)
-#     feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range (b)])
-#     total          = total + feature_result
-
-#     batch_count    = batch_count + 1
-#     if batch_count == args.limit:
-#         feature_result = feature_result / total
+        feature_result = total
+        # print(feature_result.shape)
 
 def get_feature_hook_densenet(self, input, output):
     global feature_result

@@ -107,7 +107,8 @@ if __name__== '__main__':
     # #VGG-16
     # compress_rate = [0.446988, 0.289265, 0.195314, 0.052018, 0.019805, 0.150464, 0.332670, 0.467028, 0.497656, 0.604502, 0.487944, 0.666465, 0.138802]  # from eagleeye것
     # compress_rate = [0.051752, 0.080923, 0.147122, 0.126646, 0.234942, 0.196759, 0.185370, 0.422472, 0.382292, 0.459086, 0.521959, 0.573066, 0.155299] #from energy
-    compress_rate = [0.390625, 0.0,      0.718750, 0.281250, 0.062500, 0.343750, 0.792968, 0.023437, 0.363281, 0.812500, 0.300781, 0.365234, 0.533203] #내 concept으로 계산한 것
+    # compress_rate = [0.390625, 0.0,      0.718750, 0.281250, 0.062500, 0.343750, 0.792968, 0.023437, 0.363281, 0.812500, 0.300781, 0.365234, 0.533203] #내 concept으로 계산한 것
+    # compress_rate = [0.390625, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.029296875, 0.384765625, 0.875, 0.98046875, 0.98046875] #weight 구간에서 계산한 것 (commented by 경환)
 
     # ResNet-56
     # compress_rate = [0.1875, 0.0625, 0.0625, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0625, 0.25, 0.0,
@@ -210,11 +211,16 @@ if __name__== '__main__':
 
         print_logger.info("=>Best accuracy {:.3f}".format(best_acc))
 
+    # if len(args.gpu)>1:
+    #     convcfg = net.module.covcfg
+    # else:
+    #     convcfg = net.covcfg
 
-    if len(args.gpu)>1:
-        convcfg = net.module.covcfg
-    else:
-        convcfg = net.covcfg
+
+    convcfg = []
+    for name, cov_layer in net.named_modules():
+        if isinstance(cov_layer, nn.Conv2d):
+           convcfg.append(name)
 
     param_per_cov_dic={
         'vgg_16_bn': 4,

@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument(
         '--gpu',
         type=str,
-        default='6',
+        default='6,7',
         help='Select gpu to use')
     parser.add_argument(
         '--job_dir',
@@ -98,7 +98,7 @@ def get_args():
     parser.add_argument(
         '--num-workers',
         type=int,
-        default=2,
+        default=0,
         help='num of workers for dataloader'
     )
     parser.add_argument(

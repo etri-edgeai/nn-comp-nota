@@ -229,8 +229,8 @@ def train(epoch, cov_id, optimizer, scheduler, pruning=True):
 
             optimizer.step()
 
-            if pruning:
-                m.grad_mask(cov_id)
+            # if pruning:
+            #     m.grad_mask(cov_id)
 
             train_loss   += loss.item()
             _, predicted = outputs.max(1)
@@ -320,21 +320,27 @@ else:
     print_logger.info('compress rate: ' + str(net.compress_rate))
 
 number_of_filters = total_num_filters()
-num_filters_to_prune_per_iteration = int(number_of_filters * args.pr_step)  # 0.05 (5%) -> 0.01 (1%) temporally
-if num_filters_to_prune_per_iteration == 0:
+args.num_filters_to_prune_per_iteration = int(number_of_filters * args.pr_step)  # 0.05 (5%) -> 0.01 (1%) temporally
+if args.num_filters_to_prune_per_iteration == 0:
     iterations = 10
 else:
     iterations = int(
-        float(number_of_filters) / num_filters_to_prune_per_iteration)
+        float(number_of_filters) / args.num_filters_to_prune_per_iteration)
 
 iterations = int(iterations * args.total_pr)  # up to 80%
 
-for cov_id in range(iterations): #iterative pruning
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_decay_step, gamma=0.1)
+#start iterative pruning
+for cov_id in range(iterations):
+    #2. compute pruning ratio layer wisely (for each iteration)
+    compress_rate = compute_ratio_greedy(args, print_logger=print_logger) #pruning ratio 받아오는 for one iteration
 
-    #1. Load pruned_checkpoint (first stage: load pretrained model, from second to last stage: load previous best pruned model
-    if cov_id == 0:
+    for cov_id in range(args.start_cov, len(convcfg)):  # pruning mask 준비
+        # Load pruned_checkpoint
+        print_logger.info("cov-id: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
+        m.layer_mask(cov_id + 1, resume=args.resume_mask, param_per_cov=param_per_cov_dic[args.arch], arch=args.arch)
+        m.grad_mask(cov_id)
+
+    if cov_id == 0: #load pretrained and fully-connected model (in the first iteration)
         pruned_checkpoint = torch.load(args.resume, map_location=device)  # load pretrained full-model
 
         from collections import OrderedDict
@@ -353,7 +359,7 @@ for cov_id in range(iterations): #iterative pruning
                 new_state_dict[k.replace('module.', '')] = v
 
         net.load_state_dict(new_state_dict)  # '''
-    else:
+    else: #load pretrained and fully-connected model (in the first iteration)
         if args.arch == 'resnet_50':
             skip_list = [1, 5, 8, 11, 15, 18, 21, 24, 28, 31, 34, 37, 40, 43, 47, 50, 53]
             if cov_id + 1 not in skip_list:
@@ -375,13 +381,10 @@ for cov_id in range(iterations): #iterative pruning
 
     print_logger.info("iteration: %d ====> Resuming from pruned_checkpoint..." % (cov_id))
 
-    #2. compute pruning ratio layer wisely (for each iteration)
-    compress_rate = compress_ratio_greedy(args, print_logger=print_logger) #pruning ratio 받아오는 for one iteration
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_decay_step, gamma=0.1)
 
-    #3. masking based pruning (saving the best model during test)
-    m.layer_mask(len(convcfg), resume=args.resume_mask, param_per_cov=param_per_cov_dic[args.arch], arch=args.arch) #masking
-
-    #4. Fine-tuning
+    #4. Pruning and Fine-tuning
     best_acc=0.
     for epoch in range(0, args.epochs):
         train(epoch, cov_id + 1, optimizer, scheduler)

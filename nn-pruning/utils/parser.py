@@ -66,16 +66,16 @@ def get_args():
     parser.add_argument(
         '--compress_rate',
         type=str,
-        default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
+        # default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
         # default='[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0]', #densenet_40
         # default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]', #resnet56
         # default='[0.1]+[0.40]*36+[0.40]*36+[0.4]*36',  # resnet110
-        #default = '[0.10]+[0.8]*5+[0.85]+[0.8]*3', #googlenet
+        default = '[0.10]+[0.8]*5+[0.85]+[0.8]*3', #googlenet
         help='compress rate of each conv')
     parser.add_argument(
         '--arch',
         type=str,
-        default='vgg_16_bn',
+        default='googlenet',
         choices=('resnet_50', 'vgg_16_bn', 'resnet_56', 'resnet_110', 'densenet_40', 'googlenet'),
         help='The architecture to prune')
     parser.add_argument(

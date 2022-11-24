@@ -16,7 +16,6 @@ from models import *
 from utils import progress_bar
 from mask import *
 import utils
-from rank_generation import rank_generation_energy
 
 def compute_ratio_energy(net, args, print_logger=None, trainloader=None, device='cuda:0'):
 

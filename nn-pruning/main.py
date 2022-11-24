@@ -52,7 +52,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='4,6',
+    default='5',
     help='Select gpu to use')
 parser.add_argument(
     '--job_dir',

@@ -207,9 +207,9 @@ cudnn.benchmark = True
 # print(net)
 
 if len(args.gpu)>1:
-    m = eval('mask_' + args.arch)(model = net, compress_rate = net.module.compress_rate, job_dir = args.job_dir, device = device)
+    m = eval('mask_' + args.arch)(model = net, compress_rate = net.module.compress_rate, job_dir = args.job_dir, device = device,args=args)
 else:
-    m = eval('mask_' + args.arch)(model = net, compress_rate = net.compress_rate, job_dir = args.job_dir, device = device)
+    m = eval('mask_' + args.arch)(model = net, compress_rate = net.compress_rate, job_dir = args.job_dir, device = device,args=args)
 
 criterion = nn.CrossEntropyLoss()
 

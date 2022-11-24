@@ -36,7 +36,7 @@ parser.add_argument(
     help='initial learning rate')
 parser.add_argument(
     '--lr_decay_step',
-    default='5, 10',
+    default='5, 10, 15, 20, 25',
     type=str,
     help='learning rate decay step')
 parser.add_argument(
@@ -52,7 +52,7 @@ parser.add_argument(
 parser.add_argument(
     '--gpu',
     type=str,
-    default='5',
+    default='6,7',
     help='Select gpu to use')
 parser.add_argument(
     '--job_dir',
@@ -62,7 +62,7 @@ parser.add_argument(
 parser.add_argument(
     '--epochs',
     type=int,
-    default=15,
+    default=30,
     help='The num of epochs to train.')
 parser.add_argument(
     '--train_batch_size',
@@ -82,7 +82,11 @@ parser.add_argument(
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]+[0.0]',
+    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
+    # default='[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0]', #densenet_40
+    # default='[0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]', #resnet56
+    # default='[0.1]+[0.40]*36+[0.40]*36+[0.4]*36',  # resnet110
+    # default = '[0.10]+[0.8]*5+[0.85]+[0.8]*3', #googlenet
     help='compress rate of each conv')
 parser.add_argument(
     '--arch',
@@ -91,7 +95,7 @@ parser.add_argument(
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
 parser.add_argument(
-    '--pruning_step',
+    '--pr_step',
     type=float,
     default='0.05',
     help='compress rate of each conv')
@@ -107,19 +111,16 @@ parser.add_argument(
     type=int,
     default=10,
     help='The num of batch to get rank.')
+parser.add_argument(
+    '--num-workers',
+    type=int,
+    default=0,
+    help='num of workers for dataloader'
+)
 
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
-
-# 'vgg_16_bn'  : [0.7]*7+[0.1]*6,
-
-# 'resnet_56'  : [0.1]+[0.60]*35+[0.0]*2+[0.6]*6+[0.4]*3+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4]+[0.1]+[0.4],
-# 'resnet_110' : [0.1]+[0.40]*36+[0.40]*36+[0.4]*36
-# 'densenet_40': [0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*6+[0.0]+[0.1]*6+[0.7]*5+[0.0],
-# 'googlenet'  : [0.10]+[0.7]+[0.5]+[0.8]*4+[0.5]+[0.6]*2,
-
-# 'resnet_50'  : [0.2]+[0.8]*10+[0.8]*13+[0.55]*19+[0.45]*10,
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 device_ids = list(map(int, args.gpu.split(',')))
@@ -201,8 +202,9 @@ if args.compress_rate:
 #     if args.arch == 'vgg_16_bn':
 #         compress_rate = compress_rate + [0.]
 
-# compress_rate = [0.4964518384054989, 0.2849058934492172, 0.08980860036024552, 0.37073162484256195, 0.2093322216310498, 0.12194669511621586, 0.010377582469950596, 0.357737695584358, 0.01995439420085444, 0.6296248337514334, 0.45419335484341333, 0.384814073689322, 0.5206852081311238] 예전꺼
-compress_rate = [0.446988357583512, 0.28926514619837845, 0.1953148126044888, 0.052018662068368256, 0.01980565049656292, 0.15046404292195228, 0.33267048810557215, 0.46702857773833417, 0.49765683784607306, 0.6045027284494889, 0.48794417067817586, 0.6664655723084874, 0.13880225635771748]
+# compress_rate = [0.446988357583512, 0.28926514619837845, 0.1953148126044888, 0.052018662068368256, 0.01980565049656292, 0.15046404292195228, 0.33267048810557215, 0.46702857773833417, 0.49765683784607306, 0.6045027284494889, 0.48794417067817586, 0.6664655723084874, 0.13880225635771748] #from eagleeye
+# compress_rate = [0.40431535, 0.6322112, 0.574696, 0.4947118, 0.4588716, 0.3842966, 0.36205, 0.4125709, 0.3733323, 0.4483263, 0.5097256, 0.559635, 0.1516595] #from energy/filter수
+compress_rate = [0.05175237, 0.0809230, 0.147122, 0.1266462, 0.2349422, 0.1967598, 0.18537, 0.4224726, 0.3822923, 0.4590861, 0.5219590, 0.573066, 0.1552993] #from energy
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model
 print_logger.info('==> Building model..')
@@ -263,6 +265,7 @@ def test(epoch, cov_id, optimizer, scheduler):
     global best_acc
     net.eval()
     num_iterations = len(testloader)
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)

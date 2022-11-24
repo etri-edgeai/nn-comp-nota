@@ -80,6 +80,8 @@ parser.add_argument(
     type=str,
     default='/rank_conv_w',
     help='npy file name')
+parser.add_argument('--seed', type=int, default=1, metavar='S',
+                    help='random seed (default: 1)')
 
 
 args = parser.parse_args()
@@ -92,6 +94,10 @@ if len(args.gpu)==1:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+torch.manual_seed(args.seed) ##for cpu
+if args.gpu:
+    torch.cuda.manual_seed(args.seed) ##for gpu
 
 # Data
 print('==> Preparing data..')
@@ -200,53 +206,53 @@ def get_feature_hook(self, input, output):
     # c = torch.tensor([torch.matrix_rank(output[i,j,:,:]).item() for i in range(a) for j in range(b)])
     # c = c.view(a, -1).float()
     # c = c.sum(0)
-
-    # ########### Seul-Ki's approach (version1)
-    # c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b)])
-    #
-    # ########### Seul-Ki's approach (version2)
-    # c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b)])
     #
     # feature_result = feature_result * total + c
     # total = total + a
     # feature_result = feature_result / total
 
-    # ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    # # >>> [8, 64, 32, 32]
-    # # >>> [8, 64, 1024]
-    # # >>> [80, 64, 1024]
-    # # >>> 필터 수 64개에 대해서 SVD하고 nuclear norm을 계산
+    # ########## Seul-Ki's approach (version1)
+    # c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b)])
+    #
+    # feature_result = feature_result * total + c
+    # total = total + a
+    # feature_result = feature_result / total
+
+    ########## Seul-Ki's approach (version2)
+    c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b)])
+
+    feature_result = feature_result * total + c
+    total = total + a
+    feature_result = feature_result / total
+
+    # ########## Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
     # if total == 0:
-    #     print("before", output.shape)
     #     feature_result = output.view(a, b, -1)
-    #     print("after", feature_result.shape)
     # else:
     #     feature_result = torch.cat((feature_result, output.view(a, b, -1)), dim=0)
-
+    #
     # total = total + a
     # batch_count += 1
-
+    #
     # if batch_count == args.limit:
-    #     print("last", feature_result.shape)
     #     feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b)])
     #     feature_result /= total
-    #     print(feature_result.shape)
     #     batch_count = 0
 
-    ########### HyungCheol's addtional approach (based version 3) / 각 배치마다 SVD를 계산하고 누적
-    feature_result = output.view(a, b, -1)
-    feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range (b)])
-
-    # 배치 데이터마다 배치 사이즈로 나누어 주어서 정규화
-    # 그 정규화 시킨 값을 total에 누적
-    feature_result = feature_result / a
-    total          = total + feature_result
-    # print(total.shape)
-
-    batch_count    = batch_count + 1
-    if batch_count == args.limit:
-        feature_result = total
-        # print(feature_result.shape)
+    # ########### HyungCheol's addtional approach (based version 3) / 각 배치마다 SVD를 계산하고 누적
+    # feature_result = output.view(a, b, -1)
+    # feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range (b)])
+    #
+    # # 배치 데이터마다 배치 사이즈로 나누어 주어서 정규화
+    # # 그 정규화 시킨 값을 total에 누적
+    # feature_result = feature_result / a
+    # total          = total + feature_result
+    # # print(total.shape)
+    #
+    # batch_count    = batch_count + 1
+    # if batch_count == args.limit:
+    #     feature_result = total
+    #     # print(feature_result.shape)
 
 def get_feature_hook_densenet(self, input, output):
     global feature_result
@@ -259,72 +265,17 @@ def get_feature_hook_densenet(self, input, output):
     # c = torch.tensor([torch.matrix_rank(output[i,j,:,:]).item() for i in range(a) for j in range(b-12,b)])
     # c = c.view(a, -1).float()
     # c = c.sum(0)
-
-    # ########### Seul-Ki's approach
-    # c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b-12, b)])
     #
     # feature_result = feature_result * total + c
     # total = total + a
     # feature_result = feature_result / total
 
+    ########### Seul-Ki's approach (version2)
+    c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
 
-    ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    if total == 0:
-        feature_result = output.view(a, b, -1)
-    else:
-        feature_result = torch.cat((feature_result, output.view(a, b, -1)), dim=0)
-
+    feature_result = feature_result * total + c
     total = total + a
-    batch_count += 1
-
-    if batch_count == args.limit:
-        feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b-12, b)])
-        feature_result /= total
-        batch_count = 0
-
-def get_feature_hook_in(self, input, output):
-    global feature_result
-    global entropy
-    global total
-    global batch_count
-    a = input[0].shape[0] #batch
-    b = input[0].shape[1] #filter
-    # print(f'input shape: {input[0].shape}')
-    # print(f'batch:{a} and filter:{b}')
-    ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    if total == 0:
-        feature_result = input[0].view(a, b, -1)
-    else:
-        feature_result = torch.cat((feature_result, input[0].view(a, b, -1)), dim=0)
-
-    total = total + a
-    batch_count += 1
-
-    if batch_count == args.limit:
-        feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b)])
-        feature_result /= total
-        batch_count = 0
-
-def get_feature_hook_densenet_in(self, input, output):
-    global feature_result
-    global total
-    global batch_count
-    a = input[0].shape[0] #batch
-    b = input[0].shape[1] #filter
-
-    ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    if total == 0:
-        feature_result = input[0].view(a, b, -1)
-    else:
-        feature_result = torch.cat((feature_result, input[0].view(a, b, -1)), dim=0)
-
-    total = total + a
-    batch_count += 1
-
-    if batch_count == args.limit:
-        feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b-12, b)])
-        feature_result /= total
-        batch_count = 0
+    feature_result = feature_result / total
 
 def get_feature_hook_googlenet(self, input, output):
     global feature_result
@@ -338,26 +289,12 @@ def get_feature_hook_googlenet(self, input, output):
     # c = c.view(a, -1).float()
     # c = c.sum(0)
 
-    # ########### Seul-Ki's approach
-    # c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b-12, b)])
-    #
-    # feature_result = feature_result * total + c
-    # total = total + a
-    # feature_result = feature_result / total
+    ########### Seul-Ki's approach
+    c = torch.tensor([torch.svd(output[:, i, :, :])[1].sum() for i in range(b-12, b)])
 
-    ########### Seul-Ki's approach (version3) / 모든 배치를 누적한 다음에 마지막에 한번만 svd 계산
-    if total == 0:
-        feature_result = output.view(a, b, -1)
-    else:
-        feature_result = torch.cat((feature_result, output.view(a, b, -1)), dim=0)
-
+    feature_result = feature_result * total + c
     total = total + a
-    batch_count += 1
-
-    if batch_count == args.limit:
-        feature_result = torch.tensor([torch.svd(feature_result[:, i, :])[1].sum() for i in range(b-12, b)])
-        feature_result /= total
-        batch_count = 0
+    feature_result = feature_result / total
 
 
 def test():
@@ -392,16 +329,13 @@ model module
 if args.arch   =='vgg_16_bn':
     if len(args.gpu) > 1:
         relucfg = net.module.relucfg
-        covcfg  = net.module.covcfg
     else:
         relucfg = net.relucfg
-        covcfg  = net.covcfg
 
     # print(covcfg)
     # print(relucfg), covcfg는 cov의 레이어 번호, relucfg는 relu의 레이어 번호
-    for i, cov_id in enumerate(covcfg):
-    # for i, cov_id in enumerate(relucfg):
-        cov_layer = net.features[cov_id]
+    for i, cov_id in enumerate(relucfg):
+        cov_layer = net.features[cov_id-1]
         handler = cov_layer.register_forward_hook(get_feature_hook)
         test()
         handler.remove()
@@ -477,7 +411,7 @@ elif args.arch =='resnet_50':
             total = torch.tensor(0.)
 
 elif args.arch =='resnet_56':
-    cov_layer = eval('net.conv1') #covert .relu to .conv1
+    cov_layer = eval('net.bn1') #relu -> bn1
     handler = cov_layer.register_forward_hook(get_feature_hook)
     test()
     handler.remove()
@@ -493,7 +427,7 @@ elif args.arch =='resnet_56':
     for i in range(3):
         block = eval('net.layer%d' % (i + 1))
         for j in range(9):
-            cov_layer = block[j].conv1 #covert .relu1 to .conv1
+            cov_layer = block[j].bn1 # relu1
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
@@ -502,7 +436,7 @@ elif args.arch =='resnet_56':
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
 
-            cov_layer = block[j].conv2 #covert .relu2 to .conv2
+            cov_layer = block[j].bn2 # relu2
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
@@ -513,7 +447,7 @@ elif args.arch =='resnet_56':
             
 elif args.arch =='resnet_110':
 
-    cov_layer = eval('net.conv1') #covert .relu to .conv1
+    cov_layer = eval('net.bn1') #covert .relu to .conv1
     handler = cov_layer.register_forward_hook(get_feature_hook)
     test()
     handler.remove()
@@ -529,7 +463,7 @@ elif args.arch =='resnet_110':
     for i in range(3):
         block = eval('net.layer%d' % (i + 1))
         for j in range(18):
-            cov_layer = block[j].conv1  #covert .relu1 to .conv1
+            cov_layer = block[j].bn1
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
@@ -539,7 +473,7 @@ elif args.arch =='resnet_110':
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)
 
-            cov_layer = block[j].conv2 #covert .relu2 to .conv2
+            cov_layer = block[j].bn2
             handler = cov_layer.register_forward_hook(get_feature_hook)
             test()
             handler.remove()
@@ -563,9 +497,9 @@ elif args.arch=='densenet_40':
         for j in range(12):
             cov_layer = dense[j].bn1 #re-convert conv1 into relu
             if j==0:
-                handler = cov_layer.register_forward_hook(get_feature_hook_in)
+                handler = cov_layer.register_forward_hook(get_feature_hook)
             else:
-                handler = cov_layer.register_forward_hook(get_feature_hook_densenet_in)
+                handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
             test()
             handler.remove()
 
@@ -575,9 +509,9 @@ elif args.arch=='densenet_40':
 
         if i<2:
             trans=eval('net.trans%d' % (i + 1))
-            cov_layer = trans.bn1 #re-convert conv1 into relu
+            cov_layer = trans.bn1
 
-            handler = cov_layer.register_forward_hook(get_feature_hook_densenet_in)
+            handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
             test()
             handler.remove()
 
@@ -585,60 +519,13 @@ elif args.arch=='densenet_40':
             feature_result = torch.tensor(0.)
             total = torch.tensor(0.)#'''
 
-    cov_layer = net.bn #covert relu into bn
-    handler = cov_layer.register_forward_hook(get_feature_hook_densenet_in)
+    cov_layer = net.bn
+    handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
     test()
     handler.remove()
     np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d' % (39) + '.npy', feature_result.numpy())
     feature_result = torch.tensor(0.)
     total = torch.tensor(0.)
-
-#
-# elif args.arch=='densenet_40':
-#
-#     if not os.path.isdir('rank_conv/' + args.arch+'_limit%d'%(args.limit)):
-#         os.mkdir('rank_conv/' + args.arch+'_limit%d'%(args.limit))
-#
-#     feature_result = torch.tensor(0.)
-#     total = torch.tensor(0.)
-#
-#     # Densenet per block & transition
-#     for i in range(3):
-#         dense = eval('net.dense%d' % (i + 1))
-#         for j in range(12):
-#             cov_layer = dense[j].relu #re-convert conv1 into relu
-#             if j==0:
-#                 handler = cov_layer.register_forward_hook(get_feature_hook)
-#             else:
-#                 handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
-#             test()
-#             handler.remove()
-#
-#             np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d'%(13*i+j+1)+'.npy', feature_result.numpy())
-#             feature_result = torch.tensor(0.)
-#             total = torch.tensor(0.)
-#
-#         if i<2:
-#             trans=eval('net.trans%d' % (i + 1))
-#             cov_layer = trans.relu #re-convert conv1 into relu
-#
-#             handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
-#             test()
-#             handler.remove()
-#
-#             np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d' % (13 * (i+1)) + '.npy', feature_result.numpy())
-#             feature_result = torch.tensor(0.)
-#             total = torch.tensor(0.)#'''
-#
-#     cov_layer = net.relu
-#     handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
-#     test()
-#     handler.remove()
-#     np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d' % (39) + '.npy', feature_result.numpy())
-#     feature_result = torch.tensor(0.)
-#     total = torch.tensor(0.)
-#
-
 
 # elif args.arch=='googlenet':
 
@@ -741,7 +628,7 @@ elif args.arch  == 'googlenet':
 
     number = 0
     for index, module1 in net.named_modules():
-        if isinstance(module1, nn.Conv2d):
+        if isinstance(module1, nn.BatchNorm2d):
             number  = number + 1
             handler = module1.register_forward_hook(get_feature_hook)
             test()

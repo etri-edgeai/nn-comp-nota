@@ -54,6 +54,7 @@ def rank_generation(net, args, trainloader, device, energy=False):
 
         ########## Seul-Ki's approach (version2)
         c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b)])
+        # c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b)])
 
         feature_result = feature_result * total + c
         total = total + a
@@ -73,6 +74,24 @@ def rank_generation(net, args, trainloader, device, energy=False):
         #     feature_result /= total
         #     batch_count = 0
 
+    def get_feature_hook_temp(self, input, output):
+        global feature_result
+        global total
+        global batch_count
+        a = output.shape[0] #batch
+        b = output.shape[1] #filter
+
+        c = []
+        ########## Seul-Ki's approach (version2)
+        for i in range(b):
+            c.append(torch.svd(output.view(a, b, -1)[:, i, :])[1])
+
+        if total == 0:
+            feature_result = c
+        else:
+            for i in range(c.__len__()):
+                feature_result[i] += c[i]
+
     def get_feature_hook_densenet(self, input, output):
         global feature_result
         global total
@@ -91,6 +110,7 @@ def rank_generation(net, args, trainloader, device, energy=False):
 
         ########### Seul-Ki's approach (version2)
         c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        # c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b-12, b)])
 
         feature_result = feature_result * total + c
         total = total + a
@@ -110,6 +130,7 @@ def rank_generation(net, args, trainloader, device, energy=False):
 
         ########### Seul-Ki's approach (version2)
         c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        # c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b-12, b)])
 
         feature_result = feature_result * total + c
         total = total + a
@@ -153,6 +174,14 @@ def rank_generation(net, args, trainloader, device, energy=False):
                 test()
                 handler.remove()
 
+                # handler = cov_layer.register_forward_hook(get_feature_hook_temp)
+                # test()
+                # handler.remove()
+                # for i in range(feature_result.__len__()):
+                #     feature_result[i] = feature_result[i].cpu().numpy() / args.limit
+                # np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '_sv.npy',
+                #         feature_result)
+
                 if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
                     os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
                 np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
@@ -162,21 +191,21 @@ def rank_generation(net, args, trainloader, device, energy=False):
                 feature_result = torch.tensor(0.)
                 total = torch.tensor(0.)
 
-        if args.arch in ['vgg_16_bn']:  # dense layer
-            for name, dense_layer in net.named_modules():  # vgg_16_bn
-                if isinstance(dense_layer, nn.BatchNorm1d):
-
-                    handler = dense_layer.register_forward_hook(get_feature_hook)
-                    test()
-                    handler.remove()
-
-                    if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
-                        os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
-                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
-                            feature_result.numpy())
-
-                    feature_result = torch.tensor(0.)
-                    total = torch.tensor(0.)
+        # if args.arch in ['vgg_16_bn']:  # dense layer
+        #     for name, dense_layer in net.named_modules():  # vgg_16_bn
+        #         if isinstance(dense_layer, nn.BatchNorm1d):
+        #
+        #             handler = dense_layer.register_forward_hook(get_feature_hook)
+        #             test()
+        #             handler.remove()
+        #
+        #             if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
+        #                 os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
+        #             np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
+        #                     feature_result.numpy())
+        #
+        #             feature_result = torch.tensor(0.)
+        #             total = torch.tensor(0.)
 
     elif args.arch =='resnet_50':
 
@@ -272,6 +301,235 @@ def rank_generation(net, args, trainloader, device, energy=False):
         np.save('rank_conv/' + args.arch +'_limit%d'%(args.limit) + args.save_name + '%d' % (39) + '.npy', feature_result.numpy())
         feature_result = torch.tensor(0.)
         total = torch.tensor(0.)
+
+
+def rank_generation_sum(net, args, trainloader, device, energy=False):
+    global feature_result, total, batch_count, min_rank
+    criterion = nn.CrossEntropyLoss()
+    feature_result = torch.tensor(0.)
+    total = torch.tensor(0.)
+    batch_count = 0
+    min_rank = 0
+    rank = []
+
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    def get_feature_hook
+    def get_feature_hook_densenet
+    def get_feature_hook_googlenet
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    def get_feature_hook(self, input, output):
+        global feature_result, total, batch_count, min_rank
+        a = output.shape[0]  # batch
+        b = output.shape[1]  # filter
+        import numpy as np
+
+        ########## Seul-Ki's approach (version2)
+        c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b)])
+        # c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b)])
+        min_rank = min(output.view(a, b, -1)[:, 0, :].shape)
+
+        feature_result = feature_result * total + c
+        total = total + a
+        feature_result = feature_result / total
+
+    def get_feature_hook_densenet(self, input, output):
+        global feature_result, total, batch_count
+        a = output.shape[0] #batch
+        b = output.shape[1] #filter
+
+        # ########### Hrank (from CVPR2020)
+        # c = torch.tensor([torch.matrix_rank(output[i,j,:,:]).item() for i in range(a) for j in range(b-12,b)])
+        # c = c.view(a, -1).float()
+        # c = c.sum(0)
+        #
+        # feature_result = feature_result * total + c
+        # total = total + a
+        # feature_result = feature_result / total
+
+        ########### Seul-Ki's approach (version2)
+        # c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b-12, b)])
+        print(len(output.view(a, b, -1)[:, 0, :]))
+
+        feature_result = feature_result * total + c
+        total = total + a
+        feature_result = feature_result / total
+
+    def get_feature_hook_googlenet(self, input, output):
+        global feature_result
+        global total
+        global batch_count
+        a = output.shape[0] #batch
+        b = output.shape[1] #filter
+
+        # ########### Hrank (from CVPR2020)
+        # c = torch.tensor([torch.matrix_rank(output[i,j,:,:]).item() for i in range(a) for j in range(b-12,b)])
+        # c = c.view(a, -1).float()
+        # c = c.sum(0)
+
+        ########### Seul-Ki's approach (version2)
+        # c = torch.tensor([torch.svd(output.view(a, b, -1)[:, i, :])[1].sum() for i in range(b-12, b)])
+        c = torch.tensor([torch.svd_lowrank(output.view(a, b, -1)[:, i, :], niter=5)[1].sum() for i in range(b - 12, b)])
+        print(len(output.view(a, b, -1)[:, 0, :]))
+
+        feature_result = feature_result * total + c
+        total = total + a
+        feature_result = feature_result / total
+
+
+    def test():
+        global best_acc
+        net.eval()
+        test_loss = 0
+        correct = 0
+        total = 0
+        limit = args.limit
+
+        with torch.no_grad():
+            for batch_idx, (inputs, targets) in enumerate(trainloader):
+                if batch_idx >= limit:  # use the first 6 batches to estimate the rank.
+                   break
+                inputs, targets = inputs.to(device), targets.to(device)
+                outputs = net(inputs)
+                loss = criterion(outputs, targets)
+
+                test_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
+
+                progress_bar(batch_idx, limit, 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))#'''
+
+
+
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    model module
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    if args.arch in ['vgg_16_bn', 'resnet_56', 'resnet_110', 'googlenet']:
+        rank_num = []
+        for name, cov_layer in net.named_modules():  # vgg_16_bn, resnet_56, resnet_110, googlenet
+            if isinstance(cov_layer, nn.BatchNorm2d):
+                handler = cov_layer.register_forward_hook(get_feature_hook)
+                test()
+                handler.remove()
+
+                rank_num.append(min_rank)
+                rank.append(feature_result.numpy())
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
+        # if args.arch in ['vgg_16_bn']:  # dense layer
+        #     for name, dense_layer in net.named_modules():  # vgg_16_bn
+        #         if isinstance(dense_layer, nn.BatchNorm1d):
+        #
+        #             handler = dense_layer.register_forward_hook(get_feature_hook)
+        #             test()
+        #             handler.remove()
+        #
+        #             if not os.path.isdir('rank_conv/' + args.arch + '_limit%d' % (args.limit)):
+        #                 os.mkdir('rank_conv/' + args.arch + '_limit%d' % (args.limit))
+        #             np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + str(cnt + 1) + '.npy',
+        #                     feature_result.numpy())
+        #
+        #             feature_result = torch.tensor(0.)
+        #             total = torch.tensor(0.)
+
+        return rank, rank_num
+
+    elif args.arch =='resnet_50':
+
+        cov_layer = eval('net.maxpool')
+        handler = cov_layer.register_forward_hook(get_feature_hook)
+        test()
+        handler.remove()
+
+        rank.append(feature_result.numpy())
+        feature_result = torch.tensor(0.)
+        total = torch.tensor(0.)
+
+        # ResNet50 per bottleneck
+        cnt=1
+        for i in range(4):
+            block = eval('net.layer%d' % (i + 1))
+            for j in range(net.num_blocks[i]):
+                cov_layer = block[j].bn1
+                handler = cov_layer.register_forward_hook(get_feature_hook)
+                test()
+                handler.remove()
+                np.save('rank_conv/' + args.arch+'_limit%d'%(args.limit) + args.save_name + '%d'%(cnt+1)+'.npy', feature_result.numpy())
+                cnt+=1
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
+                cov_layer = block[j].bn2
+                handler = cov_layer.register_forward_hook(get_feature_hook)
+                test()
+                handler.remove()
+                np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + '%d' % (cnt + 1) + '.npy',
+                        feature_result.numpy())
+                cnt += 1
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
+                cov_layer = block[j].bn3
+                handler = cov_layer.register_forward_hook(get_feature_hook)
+                test()
+                handler.remove()
+                if j==0:
+                    np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + '%d' % (cnt + 1) + '.npy',
+                            feature_result.numpy())#shortcut conv
+                    cnt += 1
+                np.save('rank_conv/' + args.arch + '_limit%d' % (args.limit) + args.save_name + '%d' % (cnt + 1) + '.npy',
+                        feature_result.numpy())#conv3
+                cnt += 1
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
+        return rank
+
+    elif args.arch=='densenet_40':
+        feature_result = torch.tensor(0.)
+        total = torch.tensor(0.)
+
+        # Densenet per block & transition
+        for i in range(3):
+            dense = eval('net.dense%d' % (i + 1))
+            for j in range(12):
+                cov_layer = dense[j].bn1
+                if j==0:
+                    handler = cov_layer.register_forward_hook(get_feature_hook)
+                else:
+                    handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
+                test()
+                handler.remove()
+
+                rank.append(feature_result.numpy())
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)
+
+            if i<2:
+                trans=eval('net.trans%d' % (i + 1))
+                cov_layer = trans.bn1
+
+                handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
+                test()
+                handler.remove()
+
+                rank.append(feature_result.numpy())
+                feature_result = torch.tensor(0.)
+                total = torch.tensor(0.)#'''
+
+        cov_layer = net.bn
+        handler = cov_layer.register_forward_hook(get_feature_hook_densenet)
+        test()
+        handler.remove()
+        rank.append(feature_result.numpy())
+        feature_result = torch.tensor(0.)
+        total = torch.tensor(0.)
+
+        return rank
+
 
 def rank_generation_energy(net, args, trainloader, device, energy=False):
     global feature_result, total, batch_count
@@ -519,7 +777,7 @@ if __name__=='__main__':
     parser.add_argument(
         '--arch',
         type=str,
-        default='googlenet',
+        default='vgg_16_bn',
         choices=('resnet_50', 'vgg_16_bn', 'resnet_56', 'resnet_110', 'densenet_40', 'googlenet'),
         help='The architecture to prune')
     parser.add_argument(
@@ -680,5 +938,7 @@ if __name__=='__main__':
                     new_state_dict[k.replace('module.', '')] = v
             net.load_state_dict(new_state_dict)
 
-    rank_generation(net, args=args, trainloader=trainloader, device=device, energy=True)
+    rank_generation(net, args=args, trainloader=trainloader, device=device, energy=False)
+    # rank, rank_num = rank_generation_sum(net, args=args, trainloader=trainloader, device=device, energy=False)
+    # rank = rank_generation_energy(net, args=args, trainloader=trainloader, device=device, energy=True)
     print(f'finish')

@@ -14,7 +14,7 @@ from models import *
 from utils import progress_bar
 from mask_sk import *
 import utils
-from compute_comp_ratio import compute_ratio
+from compute_comp_ratio import compute_ratio, compute_ratio_iterative
 from compute_comp_ratio_googlenet import compute_ratio as compute_ratio_googlenet
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -90,6 +90,16 @@ parser.add_argument(
     default='vgg_16_bn',
     choices=('resnet_50','vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet'),
     help='The architecture to prune')
+parser.add_argument(
+    '--pruning_step',
+    type=float,
+    default='0.01',
+    help='compress rate of each conv')
+parser.add_argument(
+    '--pr',
+    type=float,
+    default=0.76,
+    help='pruning ratio')
 
 args        = parser.parse_args()
 args.resume = args.resume + args.arch + '.pt'
@@ -172,8 +182,12 @@ if args.arch == 'googlenet':
     compress_rate = compute_ratio_googlenet(args, print_logger=print_logger)
 else:
     compress_rate = compute_ratio(args, print_logger=print_logger)
+    # compress_rate = compute_ratio_iterative(args, print_logger=print_logger)
 # compress_rate=[0.21875, 0.0, 0.015625, 0.0, 0.4375, 0.4375, 0.41796875, 0.99609375, 0.974609375, 0.962890625, 0.9765625, 0.984375, 0.8]
 # Model
+
+if args.arch=='vgg_16_bn':
+    compress_rate = compress_rate + [0.]
 
 print_logger.info('==> Building model..')
 net = eval(args.arch)(compress_rate=compress_rate)

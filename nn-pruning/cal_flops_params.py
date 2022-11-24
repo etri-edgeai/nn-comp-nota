@@ -25,13 +25,13 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     type=str,
-    default='googlenet',
+    default='vgg_16_bn',
     choices=('vgg_16_bn','resnet_56','resnet_110','densenet_40','googlenet','resnet_50'),
     help='The architecture to prune')
 parser.add_argument(
     '--compress_rate',
     type=str,
-    default='[0.10]+[0.8]*5+[0.85]+[0.8]*3',
+    default='[0.95]+[0.5]*6+[0.9]*4+[0.8]*2',
     help='compress rate of each conv')
 parser.add_argument(
     '--start_cov',

@@ -11,6 +11,14 @@ def model_compression(args):
     UPLOAD_MODEL_PATH = "model_vit.pt"
     INPUT_SHAPES = [{"batch": 1, "channel": 3, "dimension": [224, 224]}]
 
+    model = compressor.upload_model(
+        model_name=UPLOAD_MODEL_NAME,
+        task=TASK,
+        framework=FRAMEWORK,
+        file_path=UPLOAD_MODEL_PATH,
+        input_shapes=INPUT_SHAPES,
+    )
+
 def main(args):
     model_compression = "not implemented yet"
     compressed_model = model_compression(args)

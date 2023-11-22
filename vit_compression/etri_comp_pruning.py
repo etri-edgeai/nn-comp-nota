@@ -51,6 +51,10 @@ def model_compression(num, compression_type="l2norm"):
             recommendation_ratio=RECOMMENDATION_RATIO,
             output_path=OUTPUT_PATH,
         )
+
+    else:
+        raise ValueError("Wrong compression type.")
+
     return OUTPUT_PATH
 
 def main(args):

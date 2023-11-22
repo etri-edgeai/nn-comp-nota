@@ -1,6 +1,7 @@
 import torch
+import numpy as np
 
-from datasets import load_dataset
+from datasets import load_dataset, load_metric
 from transformers import ViTFeatureExtractor
 from torchvision.transforms import (Compose, 
                                     Normalize, 
@@ -150,6 +151,21 @@ def params_comparision(original_model, compressed_model):
     result = f"Params: {original_params} ==> {compressed_params} (x{round(original_params/compressed_params,3)})"
     print(result)
     return result
+
+def train_model(model, train_ds, test_ds, prepared_ds, seed):
+
+    feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224-in21k")
+    def collate_fn(batch):
+        return {
+            'pixel_values': torch.stack([x['pixel_values'] for x in batch]),
+            'labels': torch.tensor([x['label'] for x in batch])
+        }
+
+    metric = load_metric("accuracy")
+    def compute_metrics(p):
+        return metric.compute(predictions=np.argmax(p.predictions[0], axis=1), references=p.label_ids)
+
+    return
 
 def main(args):
     model_compression = "not implemented yet"

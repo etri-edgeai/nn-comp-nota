@@ -146,7 +146,10 @@ def params_comparision(original_model, compressed_model):
     original_params = summary(original_model.vit.eval(), (1,3,input_size, input_size)).trainable_params
     compressed_params = summary(compressed_model.vit.eval(), (1,3,input_size, input_size)).trainable_params
 
-    return compressed_params
+    print("\n--- Original model ==> Compressed model ---")
+    result = f"Params: {original_params} ==> {compressed_params} (x{round(original_params/compressed_params,3)})"
+    print(result)
+    return result
 
 def main(args):
     model_compression = "not implemented yet"

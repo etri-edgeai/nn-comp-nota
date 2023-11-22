@@ -1,5 +1,8 @@
 import torch
 
+from datasets import load_dataset
+from transformers import ViTFeatureExtractor
+from torchvision.transforms import Normalize 
 from netspresso.compressor import ModelCompressor, Task, Framework, CompressionMethod, RecommendationMethod, Options
 
 
@@ -64,6 +67,36 @@ def load_vit_model(model_name):
     model.vit = _model
 
     return model
+
+def load_datasets():
+    # load dataset
+    dataset = load_dataset('cifar100')
+    image = dataset["train"]["img"]
+
+    train_ds = dataset["train"]
+    test_ds = dataset["test"]
+
+    # load feature extractor$
+    feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224-in21k")
+
+    def transform(example_batch):
+        def toRGB(image):
+            if image.mode != 'RGB':
+                return image.convert("RGB")
+            return image
+        # Take a list of PIL images and turn them to pixel values
+        inputs = feature_extractor([toRGB(x) for x in example_batch['img']], return_tensors='pt')
+
+        # Don't forget to include the labels!
+        inputs['label'] = example_batch['coarse_label']
+        return inputs
+
+    prepared_ds = dataset.with_transform(transform)
+
+    labels = dataset['train'].features['coarse_label'].names
+
+    normalize = Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std)
+
 
 def main(args):
     model_compression = "not implemented yet"

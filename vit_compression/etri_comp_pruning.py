@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from datasets import load_dataset, load_metric
-from transformers import ViTFeatureExtractor, TrainingArguments
+from transformers import ViTFeatureExtractor, TrainingArguments, Trainer
 from torchvision.transforms import (Compose, 
                                     Normalize, 
                                     RandomHorizontalFlip,
@@ -184,7 +184,22 @@ def train_model(model, train_ds, test_ds, prepared_ds, seed):
     def compute_metrics(p):
         return metric.compute(predictions=np.argmax(p.predictions[0], axis=1), references=p.label_ids)
 
-    return
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        data_collator=collate_fn,
+        compute_metrics=compute_metrics,
+        train_dataset=train_ds,
+        eval_dataset=test_ds,
+        tokenizer=feature_extractor,
+    )
+
+    # predict 
+    predictions = trainer.predict(prepared_ds['test'])
+    preds = np.argmax(predictions.predictions[0], axis=-1)
+    result = metric.compute(predictions=preds, references=predictions.label_ids)
+    print(result)
+    return result
 
 def main(args):
     model_compression = "not implemented yet"

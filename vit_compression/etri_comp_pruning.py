@@ -201,6 +201,36 @@ def get_model_accuracy(model, train_ds, test_ds, prepared_ds):
     print(result)
     return result
 
+def train_model(model, train_ds, test_ds, prepared_ds, seed):
+    feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224-in21k")
+    def collate_fn(batch):
+        return {
+            'pixel_values': torch.stack([x['pixel_values'] for x in batch]),
+            'labels': torch.tensor([x['label'] for x in batch])
+        }
+    metric = load_metric("accuracy")
+
+    def compute_metrics(p):
+        return metric.compute(predictions=np.argmax(p.predictions[0], axis=1), references=p.label_ids)
+
+    compressed_trainer = Trainer(
+        model=model,
+        args=training_args,
+        data_collator=collate_fn,
+        compute_metrics=compute_metrics,
+        train_dataset=train_ds,
+        eval_dataset=test_ds,
+        tokenizer=feature_extractor,
+    )
+
+    # training
+    train_results = compressed_trainer.train()
+    compressed_trainer.save_model()
+    compressed_trainer.log_metrics("train", train_results.metrics)
+    compressed_trainer.save_metrics("train", train_results.metrics)
+    compressed_trainer.save_state()
+    return
+
 def main(args):
     model_compression = "not implemented yet"
     compressed_model = model_compression(args)

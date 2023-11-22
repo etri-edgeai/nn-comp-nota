@@ -245,13 +245,24 @@ def train_model(model, train_ds, test_ds, prepared_ds, seed):
         tokenizer=feature_extractor,
     )
 
+    predictions = compressed_trainer.predict(prepared_ds['test'])
+    preds = np.argmax(predictions.predictions[0], axis=-1)
+    result = metric.compute(predictions=preds, references=predictions.label_ids)
+    print(result)
+
     # training
     train_results = compressed_trainer.train()
     compressed_trainer.save_model()
     compressed_trainer.log_metrics("train", train_results.metrics)
     compressed_trainer.save_metrics("train", train_results.metrics)
     compressed_trainer.save_state()
-    return
+
+    predictions = compressed_trainer.predict(prepared_ds['test'])
+    preds = np.argmax(predictions.predictions[0], axis=-1)
+    result = metric.compute(predictions=preds, references=predictions.label_ids)
+    print(result)
+    
+    return result
 
 def main(args):
     model_compression = "not implemented yet"

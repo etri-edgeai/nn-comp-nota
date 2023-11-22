@@ -202,6 +202,28 @@ def get_model_accuracy(model, train_ds, test_ds, prepared_ds):
     return result
 
 def train_model(model, train_ds, test_ds, prepared_ds, seed):
+    # training arguments
+    training_args = TrainingArguments(
+    output_dir=f"./results",
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=16,
+    evaluation_strategy="steps",
+    num_train_epochs=1,
+    fp16=False,
+    save_steps=392,
+    eval_steps=392,
+    logging_steps=10,
+    learning_rate=2e-4,
+    save_total_limit=2,
+    remove_unused_columns=False,
+    push_to_hub=False,
+    report_to='tensorboard',
+    load_best_model_at_end=True,
+    eval_accumulation_steps=30,
+    seed=seed,
+    data_seed=seed,
+    )
+
     feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224-in21k")
     def collate_fn(batch):
         return {

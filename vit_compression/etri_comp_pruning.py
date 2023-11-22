@@ -134,6 +134,20 @@ def load_datasets():
     
     return train_ds, test_ds, prepared_ds
 
+def params_comparision(original_model, compressed_model):
+    from thop import profile
+    from torchinfo import summary
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu' # 이슈로 남기기
+    input_size = 224
+
+    dummy_input = torch.ones((1,3,input_size,input_size)).to(device)
+
+    original_params = summary(original_model.vit.eval(), (1,3,input_size, input_size)).trainable_params
+    compressed_params = summary(compressed_model.vit.eval(), (1,3,input_size, input_size)).trainable_params
+
+    return compressed_params
+
 def main(args):
     model_compression = "not implemented yet"
     compressed_model = model_compression(args)

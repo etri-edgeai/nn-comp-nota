@@ -272,27 +272,29 @@ def main(args):
 
     # load dataset
     train_ds, test_ds, prepared_ds = load_datasets()
+    results = {}
 
-    compressed_model_path = model_compression(i, args.compression_type)
+    for i in range(args.iter):
+        compressed_model_path = model_compression(i, args.compression_type)
 
-    # load model
-    original_model = load_vit_model("model_vit.pt")
-    compressed_model = load_vit_model(compressed_model_path)
+        # load model
+        original_model = load_vit_model("model_vit.pt")
+        compressed_model = load_vit_model(compressed_model_path)
 
-    # compression relsult (# of param)
-    comparision_result = params_comparision(original_model, compressed_model)
-    
-    # accuracy check (before fine-tuning)
-    original_accuracy = get_model_accuracy(original_model, train_ds, test_ds, prepared_ds)
-    compressed_model_before = get_model_accuracy(compressed_model, train_ds, test_ds, prepared_ds)
-    compare_accuracy(original_accuracy, compressed_model_before)
-    
-    # fine-tuning
-    compressed_model_after = train_model(compressed_model, train_ds, test_ds, prepared_ds, i)
-    
-    # accuracy check (after fine-tuning)
-    compare_accuracy(original_accuracy, compressed_model_after)
-    results = f"original_accuracy: {original_accuracy}, compressed_accuracy: {compressed_model_after}, {comparision_result}"
+        # compression relsult (# of param)
+        comparision_result = params_comparision(original_model, compressed_model)
+        
+        # accuracy check (before fine-tuning)
+        original_accuracy = get_model_accuracy(original_model, train_ds, test_ds, prepared_ds)
+        compressed_model_before = get_model_accuracy(compressed_model, train_ds, test_ds, prepared_ds)
+        compare_accuracy(original_accuracy, compressed_model_before)
+        
+        # fine-tuning
+        compressed_model_after = train_model(compressed_model, train_ds, test_ds, prepared_ds, i)
+        
+        # accuracy check (after fine-tuning)
+        compare_accuracy(original_accuracy, compressed_model_after)
+        results[i] = f"original_accuracy: {original_accuracy}, compressed_accuracy: {compressed_model_after}, {comparision_result}"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='argparse')

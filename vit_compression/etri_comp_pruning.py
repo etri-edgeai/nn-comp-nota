@@ -264,6 +264,10 @@ def train_model(model, train_ds, test_ds, prepared_ds, seed):
     
     return result
 
+def compare_accuracy(accu1, accu2):
+    print(f"model accuracy: {accu1} =====> {accu2}")
+    return
+
 def main(args):
     model_compression = "not implemented yet"
     compressed_model = model_compression(args)

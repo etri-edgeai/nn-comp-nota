@@ -1,3 +1,5 @@
+import torch
+
 from netspresso.compressor import ModelCompressor, Task, Framework, CompressionMethod, RecommendationMethod, Options
 
 
@@ -51,11 +53,17 @@ def model_compression(num, compression_type="l2norm"):
             recommendation_ratio=RECOMMENDATION_RATIO,
             output_path=OUTPUT_PATH,
         )
-
-    else:
-        raise ValueError("Wrong compression type.")
-
     return OUTPUT_PATH
+
+def load_vit_model(model_name):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    model = torch.load('model.pt', map_location=device)
+    _model = torch.load(model_name, map_location=device)
+
+    model.vit = _model
+
+    return model
 
 def main(args):
     model_compression = "not implemented yet"

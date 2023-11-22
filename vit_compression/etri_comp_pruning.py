@@ -152,7 +152,7 @@ def params_comparision(original_model, compressed_model):
     print(result)
     return result
 
-def train_model(model, train_ds, test_ds, prepared_ds, seed):
+def get_model_accuracy(model, train_ds, test_ds, prepared_ds):
     
     training_args = TrainingArguments(
     output_dir=f"./results",

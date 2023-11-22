@@ -119,8 +119,20 @@ def load_datasets():
     
     # Set transforms
     train_ds.set_transform(train_transforms)
-
-    return train_ds,
+    _val_transforms = Compose(
+            [
+                Resize([feature_extractor.size["width"], feature_extractor.size["height"]]),
+                ToTensor(),
+                normalize,
+            ]
+        )
+    def val_transforms(examples):
+        examples['pixel_values'] = [_val_transforms(image.convert("RGB")) for image in examples['img']]
+        examples['label'] = examples['coarse_label']
+        return examples
+    test_ds.set_transform(val_transforms)
+    
+    return train_ds, test_ds, prepared_ds
 
 def main(args):
     model_compression = "not implemented yet"

@@ -36,6 +36,22 @@ def model_compression(num, compression_type="l2norm"):
             output_path=OUTPUT_PATH,
             options=opt,
         )
+    elif "svd":
+        COMPRESSED_MODEL_NAME = "fdsvd_vit"
+        COMPRESSION_METHOD = CompressionMethod.FD_SVD
+        RECOMMENDATION_METHOD = RecommendationMethod.VBMF
+        RECOMMENDATION_RATIO = 0.2
+
+        OUTPUT_PATH = f"compressed_vit_svd_{num}.pt"
+        compressed_model = compressor.recommendation_compression(
+            model_id=model.model_id,
+            model_name=COMPRESSED_MODEL_NAME,
+            compression_method=COMPRESSION_METHOD,
+            recommendation_method=RECOMMENDATION_METHOD,
+            recommendation_ratio=RECOMMENDATION_RATIO,
+            output_path=OUTPUT_PATH,
+        )
+    return OUTPUT_PATH
 
 def main(args):
     model_compression = "not implemented yet"

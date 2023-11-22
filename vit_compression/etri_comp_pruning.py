@@ -2,7 +2,12 @@ import torch
 
 from datasets import load_dataset
 from transformers import ViTFeatureExtractor
-from torchvision.transforms import Normalize 
+from torchvision.transforms import (Compose, 
+                                    Normalize, 
+                                    RandomHorizontalFlip,
+                                    Resize,
+                                    ToTensor,
+                                    RandAugment)
 from netspresso.compressor import ModelCompressor, Task, Framework, CompressionMethod, RecommendationMethod, Options
 
 
@@ -97,6 +102,25 @@ def load_datasets():
 
     normalize = Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std)
 
+    _train_transforms = Compose(
+        [
+            Resize([feature_extractor.size["width"], feature_extractor.size["height"]]),
+            RandomHorizontalFlip(),
+            RandAugment(),
+            ToTensor(),
+            normalize,
+        ]
+    )
+
+    def train_transforms(examples):
+        examples['pixel_values'] = [_train_transforms(image.convert("RGB")) for image in examples['img']]
+        examples['label'] = examples['coarse_label']
+        return examples
+    
+    # Set transforms
+    train_ds.set_transform(train_transforms)
+
+    return train_ds,
 
 def main(args):
     model_compression = "not implemented yet"
